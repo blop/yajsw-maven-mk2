@@ -30,6 +30,8 @@ public class ControllerHandler extends SimpleChannelUpstreamHandler implements C
 			// check if JVM sent us correct key
 			if (_controller._key.equals(message.getMessage()))
 			{
+				// we set the channel not in channelConnected, 
+				_controller._channel = ctx.getChannel();
 				_controller.setState(JVMController.STATE_LOGGED_ON);
 				_controller.startupOK();
 				ctx.getChannel().write(new Message(Constants.WRAPPER_MSG_OKKEY, "" + _controller._wrappedProcess.getAppPid()));
@@ -63,6 +65,23 @@ public class ControllerHandler extends SimpleChannelUpstreamHandler implements C
 
 		case Constants.WRAPPER_MSG_PING:
 			_controller.pingReceived();
+			String msg = message.getMessage();
+			if (msg != null)
+			{
+				String[] values = msg.split(";");
+				if (values.length == 4)
+				try {
+					float heap = Float.parseFloat(values[0]);
+					long minGC = Long.parseLong(values[1]);
+					long fullGC = Long.parseLong(values[2]);
+					long heapInBytes = Long.parseLong(values[3]);
+					_controller.setHeap(heap, minGC, fullGC, heapInBytes);
+				}
+				catch (Exception ex)
+				{
+					ex.printStackTrace();
+				}
+			}
 			break;
 
 		case Constants.WRAPPER_MSG_SERVICE_STARTUP:
@@ -82,6 +101,8 @@ public class ControllerHandler extends SimpleChannelUpstreamHandler implements C
 	public void channelConnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
 	{
 
+		synchronized (_controller)
+		{
 		// we accept only one session. if we already have one -> close the
 		// new session
 		if (_controller._channel != null && _controller._channel != ctx.getChannel())
@@ -93,7 +114,12 @@ public class ControllerHandler extends SimpleChannelUpstreamHandler implements C
 		else if (_controller._channel == null)
 		{
 			_controller.setState(JVMController.STATE_ESTABLISHED);
-			_controller._channel = ctx.getChannel();
+			// a hacker may establish a connection but does not send the key, thus locking the controller for the process.
+			// we leave him connected, so he does not keep polling us, but we allow further connections, until we get the key from our app.
+			//TODO if we have a real bandit: timeout of connections which do not send the key.
+			//_controller._channel = ctx.getChannel();
+
+		}
 		}
 
 	}
@@ -101,6 +127,8 @@ public class ControllerHandler extends SimpleChannelUpstreamHandler implements C
 	@Override
 	public void channelDisconnected(ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception
 	{
+		synchronized (_controller)
+		{
 		if (_controller._channel == ctx.getChannel())
 		{
 			// stop processing outgoing messages
@@ -111,6 +139,8 @@ public class ControllerHandler extends SimpleChannelUpstreamHandler implements C
 			_controller.setState(JVMController.STATE_WAITING_CLOSED);
 			if (_controller.isDebug())
 				_controller.getLog().info("session closed -> waiting");
+		}
+		
 		}
 	}
 

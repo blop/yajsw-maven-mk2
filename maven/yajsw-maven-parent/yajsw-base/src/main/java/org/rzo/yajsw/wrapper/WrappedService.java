@@ -282,6 +282,12 @@ public class WrappedService
 			{
 				e.printStackTrace();
 			}
+			String tmpDir = _config.getString("wrapper.tmp.path", null);
+			if (tmpDir == null)
+				tmpDir = System.getProperty("java.io.tmpdir");
+			File tmpFile = new File(tmpDir);
+			result.add("\"-Djna_tmpdir=" + tmpFile.getAbsolutePath()+"\"");
+
 		return result;
 	}
 

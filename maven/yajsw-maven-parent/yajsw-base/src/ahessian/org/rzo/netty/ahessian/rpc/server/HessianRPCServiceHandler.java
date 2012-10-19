@@ -21,6 +21,7 @@ import org.jboss.netty.util.Timer;
 import org.rzo.netty.ahessian.Constants;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCCallMessage;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCReplyMessage;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 import org.rzo.netty.ahessian.utils.TimedBlockingPriorityQueue;
 
 /**
@@ -58,7 +59,7 @@ public class HessianRPCServiceHandler extends SimpleChannelUpstreamHandler imple
 	private boolean										_stop		= false;
 	
 	final AtomicLong _openCounter = new AtomicLong(0);
-	final Lock _lock = new ReentrantLock();
+	final Lock _lock = new MyReentrantLock();
 	final Condition _channelOpen = _lock.newCondition();
 
 	public HessianRPCServiceHandler(Executor executor)

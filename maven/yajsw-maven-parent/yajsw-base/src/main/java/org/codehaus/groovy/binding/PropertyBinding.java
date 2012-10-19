@@ -19,14 +19,7 @@ import groovy.beans.DefaultPropertyAccessor;
 import groovy.beans.PropertyAccessor;
 import groovy.lang.GroovyRuntimeException;
 import groovy.lang.MissingMethodException;
-import org.codehaus.groovy.runtime.DefaultGroovyMethods;
-import org.codehaus.groovy.runtime.InvokerHelper;
-import org.codehaus.groovy.runtime.InvokerInvocationException;
-import org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
-import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -40,14 +33,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-//import java.util.logging.Level;
-//import java.util.logging.Logger;
+
+import javax.swing.SwingUtilities;
+
+import org.codehaus.groovy.runtime.DefaultGroovyMethods;
+import org.codehaus.groovy.runtime.InvokerHelper;
+import org.codehaus.groovy.runtime.InvokerInvocationException;
+import org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation;
+import org.jboss.netty.logging.InternalLogger;
+import org.jboss.netty.logging.InternalLoggerFactory;
 
 
 /**
  * @author <a href="mailto:shemnon@yahoo.com">Danno Ferrin</a>
  * @author Andres Almiray
- * @version $Revision: 1.1 $
+ * @version $Revision$
  * @since Groovy 1.1
  */
 public class PropertyBinding implements SourceBinding, TargetBinding, TriggerBinding {

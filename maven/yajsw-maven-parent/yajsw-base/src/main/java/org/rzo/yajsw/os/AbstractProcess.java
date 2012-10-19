@@ -441,5 +441,10 @@ public abstract class AbstractProcess implements Process
 		_desktop = desktop;
 	}
 
+	public boolean isDebug()
+	{
+		return _debug;
+	}
+
 
 }

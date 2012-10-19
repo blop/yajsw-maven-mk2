@@ -7,6 +7,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import org.jboss.netty.util.Timeout;
 import org.jboss.netty.util.Timer;
 import org.jboss.netty.util.TimerTask;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 
 public class IntervalTimer
 {
@@ -15,7 +16,7 @@ public class IntervalTimer
 	private volatile Timeout _timeout;
 	private final long _interval;
 	private volatile String _name = "?";
-	private final Lock _lock = new ReentrantLock();
+	private final Lock _lock = new MyReentrantLock();
 	
 	public IntervalTimer(final Timer timer, final TimerTask task, final long interval)
 	{

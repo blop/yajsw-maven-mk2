@@ -20,6 +20,7 @@ import org.rzo.yajsw.wrapper.WrappedProcess;
  */
 public class ShellScript extends AbstractScript
 {
+	volatile Process p = null;
 
 	/**
 	 * Instantiates a new shell script.
@@ -49,7 +50,7 @@ public class ShellScript extends AbstractScript
 		String exitCode = "" + _process.getExitCode();
 		try
 		{
-			Process p = OperatingSystem.instance().processManagerInstance().createProcess();
+			p = OperatingSystem.instance().processManagerInstance().createProcess();
 			p.setCommand(getScript() + " " + id + " " + state + " " + count + " " + pid + " " + exitCode);
 			p.setPipeStreams(false, false);
 			p.start();
@@ -59,6 +60,7 @@ public class ShellScript extends AbstractScript
 			if (p.getExitCode() != 0)
 				System.out.println("script " + getScript() + "returned " + p.getExitCode());
 			p.destroy();
+			p = null;
 		}
 		catch (Exception ex)
 		{
@@ -72,10 +74,28 @@ public class ShellScript extends AbstractScript
 		return execute("");
 	}
 
-	public Object executeWithTimeout()
+	public void executeWithTimeout()
 	{
 		// TODO Auto-generated method stub
-		return null;
+		
 	}
+
+	@Override
+	public void interrupt()
+	{
+		if (p != null)
+		{
+			p.destroy();
+		}
+	}
+	
+	void log(String msg)
+	{
+		if (_process != null && _process.getInternalWrapperLogger() != null)
+			_process.getInternalWrapperLogger().info(msg);
+		else
+			System.out.println(msg);
+	}
+
 
 }

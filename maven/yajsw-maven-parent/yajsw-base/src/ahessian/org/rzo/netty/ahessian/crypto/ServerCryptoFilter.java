@@ -4,6 +4,9 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import javax.crypto.Cipher;
 
@@ -27,6 +30,7 @@ public class ServerCryptoFilter extends SimpleChannelHandler implements CryptoCo
 	private StreamCipher _decodeCipher;
 	private byte[] _cryptedIvKeyMessage;
 	private int _bytesRead;
+	private List<byte[]> _passwords = new ArrayList<byte[]>();
 
 
 	@Override
@@ -140,12 +144,17 @@ public class ServerCryptoFilter extends SimpleChannelHandler implements CryptoCo
         System.out.println("received iv+key: "+OutLogger.asString(data));
 
 		byte[] iv = new byte[SYM_IV_SIZE];
-		System.arraycopy(data, data.length-(SYM_IV_SIZE+SYM_KEY_SIZE), iv, 0, iv.length);
+		System.arraycopy(data, data.length-(SYM_IV_SIZE+SYM_KEY_SIZE+PASSWORD_SIZE+PASSWORD_SIZE), iv, 0, iv.length);
         System.out.println("received iv: "+OutLogger.asString(iv));
 		
 		byte[] key = new byte[SYM_KEY_SIZE];
-		System.arraycopy(data, data.length-SYM_KEY_SIZE, key, 0, key.length);
+		System.arraycopy(data, data.length-(SYM_KEY_SIZE+PASSWORD_SIZE), key, 0, key.length);
         System.out.println("received key: "+OutLogger.asString(key));
+        
+        byte[] password = new byte[PASSWORD_SIZE];
+		System.arraycopy(data, data.length-PASSWORD_SIZE, password, 0, password.length);
+        if (!checkPassword(password))
+        	throw new RuntimeException("password mismatch");
         
 		_encodeCipher = StreamCipherFactory.createCipher(SYM_KEY_TYPE);
 		_encodeCipher.engineInitEncrypt(key, iv);
@@ -153,6 +162,28 @@ public class ServerCryptoFilter extends SimpleChannelHandler implements CryptoCo
 		_decodeCipher = StreamCipherFactory.createCipher(SYM_KEY_TYPE);
 		_decodeCipher.engineInitDecrypt(key, iv);
 	}
+
+	private boolean checkPassword(byte[] password)
+	{
+		if (password == null || password.length != PASSWORD_SIZE)
+			return false;
+		else for (byte[] pwd : _passwords)
+			if (Arrays.equals(password, pwd))
+				return true;
+		return false;
+	}
+	
+	public void addPassword(byte[] password)
+	{
+		if (password == null || password.length == 0 || PASSWORD_SIZE == 0)
+			return;
+		byte[]mPassword = new byte[PASSWORD_SIZE];
+		Arrays.fill(mPassword, (byte)0);
+		int length = Math.min(PASSWORD_SIZE, password.length);
+		System.arraycopy(password, 0, mPassword, 0, length);
+		_passwords.add(mPassword);
+	}
+
 
 	@Override
 	public void writeRequested(

@@ -39,7 +39,8 @@ class ControllerPipelineFactory implements ChannelPipelineFactory
 		if (_debug)
 			pipeline.addLast("logging1", new LoggingFilter(_controller.getLog(), "controller"));
 
-		// allow new connections only if state != LOGGED_ON
+		// allow new connections only if state != LOGGED_ON 
+		// and only if state != PROCESS_KILLED
 		pipeline.addLast("checkWaiting", new ConditionFilter(new Condition()
 		{
 			public boolean isOk(ChannelHandlerContext ctx, ChannelEvent e)
@@ -48,7 +49,12 @@ class ControllerPipelineFactory implements ChannelPipelineFactory
 				int currentState = _controller.getState();
 				if (currentState == JVMController.STATE_LOGGED_ON)
 				{
-					_controller.getLog().info("app already logged on -> rejecting new connedction");
+					_controller.getLog().info("app already logged on -> rejecting new connection");
+					result = false;
+				}
+				else if (currentState == JVMController.STATE_PROCESS_KILLED)
+				{
+					_controller.getLog().info("app not running -> rejecting new connection");
 					result = false;
 				}
 				return result;
@@ -78,7 +84,7 @@ class ControllerPipelineFactory implements ChannelPipelineFactory
 		if (_controller.isDebug())
 		{
 			pipeline.addLast("logging", new LoggingFilter(_controller.getLog(), "controller"));
-			_controller.getLog().info("Logging ON");
+			_controller.getLog().info("jvm controller set set netty logger");
 		}
 
 		// if we found our partner close all other open connections

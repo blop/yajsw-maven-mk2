@@ -9,6 +9,7 @@ import java.util.NoSuchElementException;
 
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelEvent;
+import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelHandler;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
@@ -319,5 +320,10 @@ public class MixinPipeline implements ChannelPipeline
 			pipeline.addLast(name, handler);
 		}
 	}
+	
+    public ChannelFuture execute(Runnable task) {
+        return getSink().execute(this, task);
+    }
+
 
 }

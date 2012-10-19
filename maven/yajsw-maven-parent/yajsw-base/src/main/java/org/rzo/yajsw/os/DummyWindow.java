@@ -29,7 +29,6 @@ import com.sun.jna.Structure;
 import com.sun.jna.platform.win32.GDI32;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.User32;
-import com.sun.jna.platform.win32.WinUser.POINT;
 import com.sun.jna.ptr.PointerByReference;
 
 // TODO: Auto-generated Javadoc

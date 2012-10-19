@@ -17,10 +17,12 @@ import org.rzo.netty.ahessian.Constants;
 public class ReconnectHandler extends SimpleChannelUpstreamHandler
 {
 	private  Timer _timer;
-	private  long RECONNECT_DELAY = 5000;
+	private  long RECONNECT_DELAY = 10000;
+	private  long MAX_RECONNECT_DELAY = 10000;
 	private BootstrapProvider _bootstrap;
 	private volatile boolean _stop = false;
 	private volatile Timeout _timeout;
+	private volatile int _retryCounter = 0;
 	
 	public ReconnectHandler(BootstrapProvider bootstrap, long reconnectDelay, Timer timer)
 	{
@@ -42,6 +44,8 @@ public class ReconnectHandler extends SimpleChannelUpstreamHandler
 			if (_timeout != null)
 				return;
 			Constants.ahessianLogger.warn("channel closed wait to reconnect ...");
+			_retryCounter++;
+			long retryIntervall = Math.min(RECONNECT_DELAY*_retryCounter, MAX_RECONNECT_DELAY);
 	        _timeout = _timer.newTimeout(new TimerTask() {
 				public void run(Timeout timeout) throws Exception
 				{
@@ -49,7 +53,7 @@ public class ReconnectHandler extends SimpleChannelUpstreamHandler
 	            	connect(_bootstrap.getBootstrap());
 	               
 				}
-	        }, RECONNECT_DELAY, TimeUnit.MILLISECONDS);
+	        }, retryIntervall, TimeUnit.MILLISECONDS);
 	    }
 		
 		@Override
@@ -93,7 +97,10 @@ public class ReconnectHandler extends SimpleChannelUpstreamHandler
 			Constants.ahessianLogger.warn("", e);
 				}
         if (f.isSuccess())
+        {
       	  Constants.ahessianLogger.warn("connected");
+      	  _retryCounter = 0;
+        }
         else
         {
       	  Constants.ahessianLogger.warn("not connected");

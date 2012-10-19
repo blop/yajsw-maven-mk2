@@ -41,6 +41,7 @@ public interface Process
 	 *            the new working dir
 	 */
 	public void setWorkingDir(String dir); //
+	public boolean changeWorkingDir(String dir); //
 
 	/**
 	 * Sets the priority.

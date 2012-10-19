@@ -29,6 +29,8 @@ public abstract class OperatingSystem
 
 	/** The _os name. */
 	static String			_osName;
+	
+	static boolean _isPosix = true;
 
 	/**
 	 * Instance.
@@ -41,7 +43,10 @@ public abstract class OperatingSystem
 			return _instance;
 		_osName = System.getProperty("os.name");
 		if (_osName.toLowerCase().startsWith("windows"))
+		{
 			_instance = new OperatingSystemWindowsXP();
+			_isPosix = false;
+		}
 		else if (_osName.toLowerCase().startsWith("mac os x"))
 			_instance = new OperatingSystemMacOsX();
 		else if (_osName.contains("BSD"))
@@ -64,6 +69,11 @@ public abstract class OperatingSystem
 	public String getOperatingSystemName()
 	{
 		return _osName;
+	}
+	
+	public boolean isPosix()
+	{
+		return _isPosix;
 	}
 
 	/**

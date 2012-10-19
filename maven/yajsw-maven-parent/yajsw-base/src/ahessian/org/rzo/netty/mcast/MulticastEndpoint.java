@@ -1,10 +1,10 @@
 package org.rzo.netty.mcast;
 
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
+
+import java.net.*;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -47,7 +47,8 @@ public class MulticastEndpoint
 	        multicastAddress = new InetSocketAddress(mcastGroupIp, mcastGroupPort);
 	        NetworkInterface networkInterface =
 	        NetworkInterface.getByInetAddress(InetAddress.getByName(bindAddress));
-	        datagramChannel.joinGroup(multicastAddress, networkInterface);
+	        //for (Enumeration nifs = NetworkInterface.getNetworkInterfaces(); nifs.hasMoreElements(); )
+	        datagramChannel.joinGroup(multicastAddress, null);//(NetworkInterface) nifs.nextElement());
 	        init = true;
 	}
 	

@@ -13,6 +13,7 @@ import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.DownstreamMessageEvent;
 import org.rzo.netty.ahessian.Constants;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 
 import com.caucho.hessian4.io.FlushableOutput;
 
@@ -28,7 +29,7 @@ public class OutputStreamBuffer extends OutputStream implements FlushableOutput
 	
 	/** Indicates if the stream has been closed */
 	private volatile boolean _closed = false;
-	private Lock			_lock				= new ReentrantLock();
+	private Lock			_lock				= new MyReentrantLock();
 	
 	/** If written bytes > watermark, the bytes are sent downstream */
 	int _watermark = 1024*1024;
@@ -58,11 +59,17 @@ public class OutputStreamBuffer extends OutputStream implements FlushableOutput
 		if (_closed)
 			throw new IOException("stream closed");
 		_lock.lock();
+		try
+		{
 		//System.out.println("write "+_buf.readableBytes());
 		_buf.writeByte((byte)b);
 		if (_buf.writerIndex() >= _watermark)
 			sendDownstream(null);
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 	}
 	
 	/* (non-Javadoc)
@@ -74,11 +81,17 @@ public class OutputStreamBuffer extends OutputStream implements FlushableOutput
 		if (_closed)
 			throw new IOException("stream closed");
 		_lock.lock();
+		try
+		{
 		_buf.writeBytes(b, off, len);
 		//System.out.println("write "+len+" "+_buf.readableBytes());
 		if (_buf.writerIndex() >= _watermark)
 			sendDownstream(null);
+		}
+		finally
+		{
         _lock.unlock();
+		}
 
 	}
 	

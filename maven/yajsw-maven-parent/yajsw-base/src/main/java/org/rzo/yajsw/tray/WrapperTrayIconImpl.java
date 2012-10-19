@@ -28,6 +28,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -171,6 +172,22 @@ public class WrapperTrayIconImpl implements WrapperTrayIcon
 	 */
 	public WrapperTrayIconImpl(String name, String icon, YajswConfigurationImpl	config)
 	{
+		try
+		{
+			Class cl = this.getClass().getClassLoader().loadClass("java.awt.GraphicsEnvironment");
+			Method m = cl.getMethod("isHeadless", null);
+			Boolean b = (Boolean) m.invoke(null, null);
+			if (b)
+			{
+				System.out.println("SystemTray not supported on this platform: headless");
+				return;
+			}
+		}
+		catch (Exception ex)
+		{
+			System.out.println("SystemTray not supported on this platform: "+ex.getMessage() + " error getting java.awt.GraphicsEnvironment");
+			return;			
+		}
 		if (!SystemTray.isSupported())
 		{
 			System.out.println("SystemTray not supported on this platform");
@@ -627,7 +644,7 @@ _consoleItem.setAction(new AbstractAction("Console", createImageIcon("/resources
 		});
 		
 		
-		List menueList = _config == null ? Arrays.asList("start", "stop") : _config.getList("wrapper.tray.commands", Arrays.asList(new String[]{"close", "start", "stop", "restart", "console", "response", "exitWrapper", "startService", "exitTray"}));
+		List menueList = _config == null ? Arrays.asList("start", "stop") : _config.getList("wrapper.tray.commands", Arrays.asList(new Object[]{"close", "start", "stop", "restart", "console", "response", "exitWrapper", "startService", "exitTray"}));
 
 		if (menueList.contains("start"))
 			popup.add(_startItem);
@@ -648,28 +665,31 @@ _consoleItem.setAction(new AbstractAction("Console", createImageIcon("/resources
 			popup.add(_exitItem);
 		popup.add(_closeItem);
 		popup.validate();
-		
 			ti.addMouseListener(new MouseListener()
 		{
 
 			public void mouseClicked(MouseEvent e)
 			{
+				System.out.println("mouse clicked");
 			}
 
 			public void mouseEntered(MouseEvent e)
 			{
+				System.out.println("mouse entered");
+
 			}
 
 			public void mouseExited(MouseEvent e)
 			{
+				System.out.println("mouse exited");
 			}
 
 			public void mousePressed(MouseEvent e)
 			{
-			}
 
-			public void mouseReleased(MouseEvent e)
-			{
+				if (!OperatingSystem.instance().getOperatingSystemName().toLowerCase().contains("mac"))
+					return;
+				System.out.println("mouse rleased");
 				if(_dialogDisplayed == true)
 				{
 
@@ -678,7 +698,43 @@ _consoleItem.setAction(new AbstractAction("Console", createImageIcon("/resources
 				{
 					if(!_dialogDisplayed)
 					{
-					popup.show(e.getComponent(), e.getX() - popup.getWidth(), e.getY() - popup.getHeight());
+						System.out.println("X"+e.getXOnScreen()+"/"+ popup.getWidth());
+						System.out.println("Y"+e.getYOnScreen()+"/"+ popup.getHeight());
+						int xPos = e.getXOnScreen() > popup.getWidth() ? e.getXOnScreen() - popup.getWidth() : e.getXOnScreen();
+						int yPos = e.getYOnScreen() > popup.getHeight() ? e.getYOnScreen() - popup.getHeight() : e.getYOnScreen();
+					popup.show(e.getComponent(), xPos, yPos);
+					if (m != null)
+					m.registerMouseUpListner(new Runnable()
+					{
+
+						public void run()
+						{
+							closePopup();
+						}
+						
+					}, executor);
+					}
+				}
+
+			}
+
+			public void mouseReleased(MouseEvent e)
+			{
+				System.out.println("mouse rleased");
+				if(_dialogDisplayed == true)
+				{
+
+				}
+				else
+				{
+					if(!_dialogDisplayed)
+					{
+						System.out.println("X"+e.getXOnScreen()+"/"+ popup.getWidth());
+						System.out.println("Y"+e.getYOnScreen()+"/"+ popup.getHeight());
+						int xPos = e.getXOnScreen() > popup.getWidth() ? e.getXOnScreen() - popup.getWidth() : e.getXOnScreen();
+						int yPos = e.getYOnScreen() > popup.getHeight() ? e.getYOnScreen() - popup.getHeight() : e.getYOnScreen();
+					popup.show(e.getComponent(), xPos, yPos);
+					if (m != null)
 					m.registerMouseUpListner(new Runnable()
 					{
 
@@ -754,7 +810,7 @@ _consoleItem.setAction(new AbstractAction("Console", createImageIcon("/resources
 			startCmd[4] = parser.getArgs().get(1);
 			Process startProcess = OperatingSystem.instance().processManagerInstance().createProcess();
 			startProcess.setCommand(startCmd);
-			startProcess.setDebug(true);
+			startProcess.setDebug(false);
 			startProcess.start();
 			startProcess.waitFor();
 			startProcess.destroy();
@@ -777,7 +833,7 @@ _consoleItem.setAction(new AbstractAction("Console", createImageIcon("/resources
 				{
 					// give event some time to get to java.
 					// in case we clicked in a java ui
-					Thread.sleep(10);
+					Thread.sleep(50);
 				}
 				catch (InterruptedException e)
 				{
@@ -789,6 +845,7 @@ _consoleItem.setAction(new AbstractAction("Console", createImageIcon("/resources
 					public void run()
 					{
 					popup.setVisible(false);
+					if (m != null)
 					m.unregisterMouseUpListner();
 					}
 				});

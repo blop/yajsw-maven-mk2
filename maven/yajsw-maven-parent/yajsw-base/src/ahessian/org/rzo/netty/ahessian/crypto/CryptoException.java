@@ -8,7 +8,7 @@ package org.rzo.netty.ahessian.crypto;
  * <a href="http://www.systemics.com/docs/cryptix/">Cryptix Development Team</a>.
  * <br>All rights reserved.
  * <p>
- * <b>$Revision: 1.1 $</b>
+ * <b>$Revision: 1.6 $</b>
  * @author  David Hopwood
  * @since   Cryptix 2.2.2
  */

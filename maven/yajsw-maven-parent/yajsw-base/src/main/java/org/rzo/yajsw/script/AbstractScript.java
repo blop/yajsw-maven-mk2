@@ -12,10 +12,16 @@ package org.rzo.yajsw.script;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.jboss.netty.util.HashedWheelTimer;
+import org.jboss.netty.util.Timeout;
+import org.jboss.netty.util.Timer;
+import org.jboss.netty.util.TimerTask;
+import org.rzo.yajsw.util.DaemonThreadFactory;
 import org.rzo.yajsw.wrapper.WrappedProcess;
 
 // TODO: Auto-generated Javadoc
@@ -36,8 +42,14 @@ public abstract class AbstractScript implements Script
 	String					_id;
 
 	String[]				_args;
+	
+	final static Timer TIMER = new HashedWheelTimer();
+	static final ExecutorService	EXECUTOR		= (ThreadPoolExecutor) new ThreadPoolExecutor(0, 50, 120L, TimeUnit.SECONDS,
+			new SynchronousQueue<Runnable>(), new DaemonThreadFactory("scriptExecutorInternal"));
+	volatile Future _future;
+	volatile Timeout _timerTimeout;
 
-	static ExecutorService	pool		= Executors.newCachedThreadPool();
+
 
 	/**
 	 * Instantiates a new abstract script.
@@ -64,27 +76,41 @@ public abstract class AbstractScript implements Script
 	 * java.lang.String, java.lang.Object)
 	 */
 	public abstract Object execute(String line);
+	public abstract void interrupt();
+	abstract void log(String msg);
 
-	public Object executeWithTimeout(final String line)
+	synchronized public void executeWithTimeout(final String line)
 	{
-		final Future future = pool.submit(new Callable<Object>()
+		Object result = null;
+		_timerTimeout = TIMER.newTimeout(new TimerTask()
 		{
-			public Object call()
-			{
-				return execute(line);
-			}
-		});
 
-		try
-		{
-			return future.get(_timeout, TimeUnit.MILLISECONDS);
+			public void run(Timeout arg0) throws Exception
+			{
+				log("script takes too long -> interrupt");
+				try
+				{
+				interrupt();
+				}
+				catch (Throwable e)
+				{
+					
+				}
+			}
+			
 		}
-		catch (Exception e)
-		{
-			System.out.println("script did not terminate within " + _timeout + " ms");
-			future.cancel(true);
-			return null;
-		}
+		, _timeout, TimeUnit.MILLISECONDS);
+		_future = EXECUTOR.submit(new Callable<Object>()
+				{
+					public Object call()
+					{
+						Object result = execute(line);
+						if (_timerTimeout != null)
+							_timerTimeout.cancel();
+						_timerTimeout = null;
+						return result;
+					}
+				});
 	}
 
 	/*

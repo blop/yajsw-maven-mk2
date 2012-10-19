@@ -31,7 +31,7 @@ public class ScriptFactory
 	 * 
 	 * @return the script
 	 */
-	public static Script createScript(String script, String id, WrappedProcess process, String[] args, InternalLogger log, int timeout)
+	public static Script createScript(String script, String id, WrappedProcess process, String[] args, InternalLogger log, int timeout, String encoding, boolean reload)
 	{
 		if (script == null || "".equals(script))
 			return null;
@@ -42,7 +42,7 @@ public class ScriptFactory
 		if (script.endsWith(".gv") || script.endsWith(".groovy"))
 			try
 			{
-				return new GroovyScript(script, id, process, args, timeout, log);
+				return new GroovyScript(script, id, process, args, timeout, log, encoding, reload);
 			}
 			catch (Throwable e)
 			{
@@ -52,7 +52,7 @@ public class ScriptFactory
 		return null;
 	}
 
-	public static Script createScript(String script, String id, WrappedProcess process, List args, InternalLogger log, int timeout)
+	public static Script createScript(String script, String id, WrappedProcess process, List args, InternalLogger log, int timeout, String encoding, boolean reload)
 	{
 		String[] argsArr = new String[0];
 		if (args != null && args.size() > 0)
@@ -61,7 +61,7 @@ public class ScriptFactory
 			for (int i = 0; i < argsArr.length; i++)
 				argsArr[i] = args.get(i).toString();
 		}
-		return createScript(script, id, process, argsArr, log, timeout);
+		return createScript(script, id, process, argsArr, log, timeout, encoding, reload);
 	}
 
 }

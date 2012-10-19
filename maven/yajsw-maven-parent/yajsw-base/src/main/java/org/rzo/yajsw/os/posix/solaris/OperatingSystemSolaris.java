@@ -25,6 +25,12 @@ public class OperatingSystemSolaris extends OperatingSystemPosix
 	}
 
 	@Override
+	public boolean setWorkingDir(String name)
+	{
+		return new SolarisProcess().changeWorkingDir(name);
+	}
+
+	@Override
 	public JavaHome getJavaHome(Configuration config)
 	{
 		return new SolarisJavaHome(config);

@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,11 +15,22 @@ import org.rzo.yajsw.os.OperatingSystem;
 import org.rzo.yajsw.os.Process;
 import org.rzo.yajsw.os.posix.PosixProcess;
 
+import com.sun.jna.FromNativeConverter;
 import com.sun.jna.ptr.IntByReference;
 
 public class BSDProcess extends PosixProcess
 {
 	java.lang.Process	_process;
+	
+	private String getDOption(String key, String value)
+	{
+		// posix: setting quotes does not work (cmd is str array). windows: quotes are set in Process class.
+		//if (value != null && !value.contains(" "))
+			return "-D"+key+"="+value;
+		//else
+		//	return "-D"+key+"=\""+value+"\"";
+	}
+
 
 	public boolean start()
 	{
@@ -26,14 +38,23 @@ public class BSDProcess extends PosixProcess
 		_exitCode = -1;
 		ArrayList<String> cmdList = new ArrayList();
 		cmdList.add(getCurrentJava());
+		String tmpDir = _tmpPath;
+		if (tmpDir == null)
+			tmpDir = System.getProperty("jna_tmpdir", null);
+		if (tmpDir != null)
+		{
+			String opt = getDOption("jna_tmpdir", tmpDir);
+			if (!cmdList.contains(opt))
+				cmdList.add(opt);
+		}
 		cmdList.add("-classpath");
 		cmdList.add(getStartClasspath());
 		if (_pipeStreams)
 			cmdList.add("-Dwrapperx.pipeStreams=true");
 		if (_user != null)
 			cmdList.add("-Dwrapperx.user=" + _user);
-		if (_password != null)
-			cmdList.add("-Dwrapperx.password=" + _password);
+		//if (_password != null)
+		//	cmdList.add("-Dwrapperx.password=" + _password);
 		String[] xenv = getXEnv();
 		cmdList.add(AppStarter.class.getName());
 		for (int i = 0; i < _arrCmd.length; i++)
@@ -66,12 +87,16 @@ public class BSDProcess extends PosixProcess
 			do
 			{
 				line = in.readLine();
+				//System.out.println("line: " +line);
 				if (line != null && line.contains("PID:"))
 				{
 					setPid(Integer.parseInt(line.substring(4)));
-					line = null;
+					if (this._teeName == null)
+					   line = null;
+					// otherwise the stream is closed by the wrapped app
+					// we will continue reading the input stream in the gobbler
 				}
-				else
+				else if (line != null)
 					System.out.println(line);
 			}
 			while (line != null);
@@ -145,7 +170,7 @@ public class BSDProcess extends PosixProcess
 				e.printStackTrace();
 			}
 		}
-		if (_pipeStreams && _teeName == null && _tmpPath == null)
+		if (_pipeStreams && _teeName == null)
 		{
 
 			_outputStream = _process.getOutputStream();
@@ -188,7 +213,7 @@ public class BSDProcess extends PosixProcess
 	{
 		String wrapperJar = WrapperLoader.getWrapperJar();
 		File wrapperHome = new File(wrapperJar).getParentFile();
-		File jnaFile = new File(wrapperHome, "lib/core/jna/jna-3.3.0.jar");
+		File jnaFile = new File(getJNAJar());
 		try
 		{
 			return wrapperJar + ":" + jnaFile.getCanonicalPath();
@@ -283,5 +308,42 @@ public class BSDProcess extends PosixProcess
 		}
 
 	}
+	
+	private boolean checkPath(String path)
+	{
+		int ix = path.indexOf("!");
+		if (ix == -1)
+		{
+			System.out.println("<yajsw>/lib/core/jna/jna-xxx.jar not found, please check classpath. aborting wrapper !");
+			//Runtime.getRuntime().halt(999);// -> groovy eclipse plugin crashes
+			return false;
+		}
+		return true;
+		
+	}
+
+	private String getJNAJar()
+	{
+		String cn = FromNativeConverter.class.getCanonicalName();
+		String rn = cn.replace('.', '/') + ".class";
+		String path = ".";
+		try
+		{
+			path = FromNativeConverter.class.getClassLoader().getResource(rn).getPath();
+			if (!checkPath(path))
+				return null;
+			path = path.substring(0, path.indexOf("!"));
+			path = new URI(path).getPath();
+			path.replaceAll("%20", " ");
+			return path;
+		}
+		catch (Exception e1)
+		{
+			e1.printStackTrace();
+		}
+		return null;
+	}
+	
+
 
 }

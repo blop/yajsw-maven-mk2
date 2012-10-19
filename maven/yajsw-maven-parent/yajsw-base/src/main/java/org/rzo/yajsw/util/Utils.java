@@ -3,9 +3,7 @@ package org.rzo.yajsw.util;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.List;
 
-import org.rzo.yajsw.script.ScriptFactory;
 import org.rzo.yajsw.wrapper.WrappedProcess;
 import org.rzo.yajsw.wrapper.WrappedService;
 
@@ -47,9 +45,5 @@ public class Utils
 		return result;
 	}
 
-	public Object executeScript(String file)
-	{
-		return ScriptFactory.createScript(file, null, null, (List) null, null, 0).execute();
-	}
 
 }

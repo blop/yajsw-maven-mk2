@@ -118,7 +118,7 @@ public class OperatingSystemWindowsXP extends OperatingSystem
 	@Override
 	public boolean setWorkingDir(String name)
 	{
-		return WindowsXPProcess.setWorkingDirectory(name);
+		return new WindowsXPProcess().changeWorkingDir(name);
 	}
 
 	@Override

@@ -7,12 +7,14 @@
  * All commands in the file are executed and the file is deleted
  * The following commands are supported:
  * 
- * START 	: start the application if it is not running
- * STOP  	: stop the applicaiton if it is running
- * RESTART 	: restart the application if it is running
- * DUMP  	: request a thread dump
- * SHUTDOWN : stop the wrapper and the application
+ * START 	      : start the application if it is not running
+ * STOP  	      : stop the applicaiton if it is running
+ * RESTART 	    : restart the application if it is running
+ * DUMP  	      : request a thread dump
+ * SHUTDOWN     : stop the wrapper and the application
  * STATE <file> : writes the current state of the application to the given file
+ * STARTDUMP    : start of cyclic thread dump
+ * STOPDUMP     : stop of cyclic thread dump
  * 
  * Arguments: 
  * - fileName
@@ -30,6 +32,10 @@ if (callCount == 0)
 {
 	file = new File(this.args[0])
 	process.start()
+	// at start no cyclic thread dump
+	nextDumpTime = -1
+	// uncomment to start cyclic thread dump on start
+	// nextDumpTime = System.currentTimeMillis()
 }
 
 // execute a command
@@ -43,6 +49,10 @@ doCommand = { cmd ->
 		process.restart();
 	else if ("DUMP".equals(cmd))
 		process.threadDump();
+	else if ("STARTDUMP".equals(cmd))
+	  	nextDumpTime = System.currentTimeMillis()
+	else if ("STOPDUMP".equals(cmd))
+	  	nextDumpTime = -1
 	else if ("SHUTDOWN".equals(cmd))
 	{
 		process.stop();
@@ -77,4 +87,17 @@ try
 catch (Exception ex)
 {
 	logger.info("Error executing command file "+ex.getMessage())
+}
+
+try
+{
+if (nextDumpTime != -1 && nextDumpTime <= System.currentTimeMillis()) 
+	{ 
+		doCommand("DUMP")
+		nextDumpTime = System.currentTimeMillis()+30000 
+	}
+}
+catch (Exception ex)
+{
+	logger.info("Error executing cyclic thread dump "+ex.getMessage())
 }

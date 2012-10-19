@@ -4,81 +4,67 @@ import java.util.logging.Logger;
 
 import org.rzo.yajsw.os.SystemInformation;
 
-import com.sun.jna.Native;
-import com.sun.jna.NativeLong;
-import com.sun.jna.Structure;
 import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinDef.DWORD;
 
 public class WindowsXPSystemInformation implements SystemInformation
 {
 
 	public Logger	_logger;
-
-	public interface MyKernel32 extends Kernel32
+	private long _freeRAM = 0;
+	private long _totalRAM = 0;
+	private long _lastCall = 0;
+	
+	private void calc()
 	{
-
-		// Method declarations, constant and structure definitions go here
-
-		/** The INSTANCE. */
-		MyKernel32	INSTANCE	= (MyKernel32) Native.loadLibrary("kernel32", MyKernel32.class);
-
-		/*
-		 * typedef struct _MEMORYSTATUSEX { DWORD dwLength; DWORD dwMemoryLoad;
-		 * DWORDLONG ullTotalPhys; DWORDLONG ullAvailPhys; DWORDLONG
-		 * ullTotalPageFile; DWORDLONG ullAvailPageFile; DWORDLONG
-		 * ullTotalVirtual; DWORDLONG ullAvailVirtual; DWORDLONG
-		 * ullAvailExtendedVirtual; } MEMORYSTATUSEX,LPMEMORYSTATUSEX;
-		 */
-		static class MEMORYSTATUSEX extends Structure
-		{
-			public int			dwLength;
-			public int			dwMemoryLoad;
-			public NativeLong	ullTotalPhys;
-			public NativeLong	ullAvailPhys;
-			public NativeLong	ullTotalPageFile;
-			public NativeLong	ullAvailPageFile;
-			public NativeLong	ullTotalVirtual;
-			public NativeLong	ullAvailVirtual;
-			public NativeLong	ullAvailExtendedVirtual;
-		}
-
-		/*
-		 * BOOL WINAPI GlobalMemoryStatusEx( __inout LPMEMORYSTATUSEX lpBuffer
-		 * );
-		 */
-		boolean GlobalMemoryStatusEx(MEMORYSTATUSEX lpBuffer);
-
-	}
-
-	public long freeRAM()
-	{
-		MyKernel32.MEMORYSTATUSEX lpBuffer = new MyKernel32.MEMORYSTATUSEX();
-		lpBuffer.size();
-		lpBuffer.dwLength = lpBuffer.size();
-		if (MyKernel32.INSTANCE.GlobalMemoryStatusEx(lpBuffer))
+		if (System.currentTimeMillis()- _lastCall < 500)
+			return;
+		WinBase.MEMORYSTATUSEX lpBuffer = new WinBase.MEMORYSTATUSEX();
+		lpBuffer.dwLength = new DWORD(lpBuffer.size());
+		if (Kernel32.INSTANCE.GlobalMemoryStatusEx(lpBuffer))
 		{
 			lpBuffer.read();
-			return lpBuffer.ullAvailPhys.longValue();
+			_freeRAM = lpBuffer.ullAvailPhys.longValue();
+			_totalRAM = lpBuffer.ullTotalPhys.longValue();
+			_lastCall = System.currentTimeMillis();
 		}
-		return 0;
+		else
+		{
+			if (_logger != null)
+				_logger.severe("ERROR: could not read free/total RAM");
+			else
+				System.out.println("ERROR: could not read free/total RAM");
+		}
+		
+	}
+
+	
+	public long freeRAM()
+	{
+		calc();
+		return _freeRAM;
 	}
 
 	public long totalRAM()
 	{
-		MyKernel32.MEMORYSTATUSEX lpBuffer = new MyKernel32.MEMORYSTATUSEX();
-		lpBuffer.size();
-		lpBuffer.dwLength = lpBuffer.size();
-		if (MyKernel32.INSTANCE.GlobalMemoryStatusEx(lpBuffer))
-		{
-			lpBuffer.read();
-			return lpBuffer.ullTotalPhys.longValue();
-		}
-		return 0;
+		calc();
+		return _totalRAM;
 	}
 
 	public void setLogger(Logger logger)
 	{
 		_logger = logger;
+	}
+	
+	public static void main(String[] args)
+	{
+		while (true)
+		{
+		System.out.println(new WindowsXPSystemInformation().totalRAM());
+		System.out.println(new WindowsXPSystemInformation().freeRAM());
+		}
+		
 	}
 
 }

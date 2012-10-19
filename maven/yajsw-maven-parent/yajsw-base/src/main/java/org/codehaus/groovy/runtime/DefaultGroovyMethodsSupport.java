@@ -17,14 +17,30 @@ package org.codehaus.groovy.runtime;
 
 import groovy.lang.EmptyRange;
 import groovy.lang.Range;
-import org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.*;
-//import java.util.logging.Logger;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Hashtable;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Queue;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.Stack;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.Vector;
+
+import org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation;
+import org.jboss.netty.logging.InternalLogger;
+import org.jboss.netty.logging.InternalLoggerFactory;
 
 /**
  * Support methods for DefaultGroovyMethods and PluginDefaultMethods.

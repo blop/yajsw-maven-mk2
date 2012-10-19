@@ -1,5 +1,9 @@
 package org.rzo.yajsw.wrapper;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
 import org.apache.commons.configuration.Configuration;
 import org.rzo.yajsw.controller.AbstractController.ControllerListener;
 import org.rzo.yajsw.controller.runtime.RuntimeController;
@@ -12,7 +16,30 @@ public class WrappedRuntimeProcess extends AbstractWrappedProcess
 	void configProcess()
 	{
 		super.configProcess();
-		_osProcess.setCommand(_config.getString("wrapper.image"));
+		List<String> command = new ArrayList();
+		String c = _config.getString("wrapper.image", null);
+		if (c == null || c.length() == 0)
+		{
+			getInternalWrapperLogger().error("wrapper.image not set -> abort");
+			return;
+		}
+		// TODO check if c exists - search in PATH
+		command.add(c);
+		for (Iterator it = _config.getKeys("wrapper.app.parameter"); it.hasNext();)
+		{
+			String p = _config.getString((String)it.next());
+			if (p != null)
+			{
+				p = p.trim();
+				if (p.length() > 0)
+					command.add(p);
+			}	
+		}
+		String[] arrCmd = new String[command.size()];
+		for (int i = 0; i < arrCmd.length; i++)
+			arrCmd[i] = (String) command.get(i);
+
+		_osProcess.setCommand(arrCmd);
 		//_osProcess.setPipeStreams(true, false);
 		// set this to false at your own risk.
 		boolean pipeStreams = _config.getBoolean("wrapper.console.pipestreams",true);

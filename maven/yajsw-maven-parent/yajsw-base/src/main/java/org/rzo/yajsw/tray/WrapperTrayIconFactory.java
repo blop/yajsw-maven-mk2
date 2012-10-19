@@ -11,9 +11,9 @@
 package org.rzo.yajsw.tray;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.logging.Logger;
 
 import org.rzo.yajsw.boot.WrapperLoader;
 import org.rzo.yajsw.config.YajswConfigurationImpl;
@@ -55,6 +55,15 @@ public class WrapperTrayIconFactory
 			result = new WrapperTrayIconDummy();
 		return result;
 	}
+	
+	static private String getDOption(String key, String value)
+	{
+		if (value != null && !value.contains(" "))
+			return "-D"+key+"="+value;
+		else
+			return "-D"+key+"=\""+value+"\"";
+	}
+
 
 	/**
 	 * Start tray icon process.
@@ -64,46 +73,69 @@ public class WrapperTrayIconFactory
 	 * 
 	 * @return the process
 	 */
-	public static Process startTrayIconProcess(YajswConfigurationImpl config)
+	public static Process startTrayIconProcess(YajswConfigurationImpl config, Logger logger)
 	{
 		if (config == null)
 			return null;
 		String wrapperConfFileName = config.getCachedPath(false);
 
-		final Process _osProcess = OperatingSystem.instance().processManagerInstance().createProcess();
+		final Process osProcess = OperatingSystem.instance().processManagerInstance().createProcess();
 
 		try
 		{
 			List<String> cmd = new ArrayList<String>();
 			cmd.add(getJava());
-			cmd.add("-cp");
-			cmd.add(WrapperLoader.getWrapperHome() + "/wrapper.jar");
 			for (Entry<String, String> e : config.getEnvLookupSet().entrySet())
 			{
-				cmd.add("\"-D" + e.getKey() + "=" + e.getValue()+"\"");
+				String opt = getDOption(e.getKey(), e.getValue());
+				if (!cmd.contains(opt))
+					cmd.add(opt);
 			}
+			String tmpDir = config.getString("wrapper.tmp.path", System.getProperty("jna_tmpdir", null));
+			if (tmpDir != null)
+			{
+				String opt = getDOption("jna_tmpdir", tmpDir);
+				if (!cmd.contains(opt))
+					cmd.add(opt);
+			}
+			else 
+			{
+				tmpDir = config.getString("wrapper.tmp.path", System.getProperty("java.io.tmpdir", null));
+				if (tmpDir != null)
+				{
+					String opt = getDOption("jna_tmpdir", tmpDir);
+					if (!cmd.contains(opt))
+						cmd.add(opt);
+				}
+			}
+			
+			cmd.add("-classpath");
+			cmd.add(WrapperLoader.getWrapperJar());
 			cmd.add(TrayIconMainBooter.class.getName());
 			cmd.add(wrapperConfFileName);
 			String[] arrCmd = new String[cmd.size()];
 			for (int i = 0; i < arrCmd.length; i++)
 				arrCmd[i] = (String) cmd.get(i);
-			_osProcess.setCommand(arrCmd);
-			_osProcess.setPipeStreams(false, false);
-			_osProcess.setVisible(false);
-			_osProcess.start();
+			osProcess.setCommand(arrCmd);
+			osProcess.setPipeStreams(false, false);
+			osProcess.setVisible(false);
+			osProcess.setLogger(logger);
+			osProcess.setDebug(false);
 			Runtime.getRuntime().addShutdownHook(new Thread()
 			{
 				public void run()
 				{
-					if (_osProcess != null)
-						_osProcess.kill(0);
+					if (osProcess != null)
+						osProcess.kill(0);
 				}
 			});
-			return _osProcess;
+			osProcess.start();
+			logger.info("spawned system tray icon process with pid "+osProcess.getPid());
+			return osProcess;
 		}
 		catch (Exception e)
 		{
-			e.printStackTrace();
+			logger.throwing("WRapperTRayIconFactory", "startTrayIconProcess", e);
 		}
 		return null;
 	}

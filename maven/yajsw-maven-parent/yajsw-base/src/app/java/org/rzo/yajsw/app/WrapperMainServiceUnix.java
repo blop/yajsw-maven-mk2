@@ -47,7 +47,10 @@ public class WrapperMainServiceUnix implements StopableService
 	{
 		String wrapperJar = WrapperLoader.getWrapperJar();
 		String homeDir = new File(wrapperJar).getParent();
-		OperatingSystem.instance().setWorkingDir(homeDir);
+		if (!OperatingSystem.instance().setWorkingDir(homeDir))
+		{
+			System.out.println("could not set working dir. pls check configuration or user rights :"+homeDir);
+		}
 
 		StopableService service = new WrapperMainServiceUnix();
 		YajswConfigurationImpl _config = new YajswConfigurationImpl(false);

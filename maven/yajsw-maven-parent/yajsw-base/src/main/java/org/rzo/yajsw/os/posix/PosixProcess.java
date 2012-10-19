@@ -49,6 +49,10 @@ public class PosixProcess extends AbstractProcess
 	protected Utils					_utils			= new Utils();
 	boolean							_stopWaiter		= false;
 	String[]						_env			= null;
+	int stdout = getStdOutNo();
+	int stderr = getStdErrNo();// CLibrary.INSTANCE.fileno(NativeLibrary.getInstance("c").getFunction(getStdErrName()).getPointer(0));
+	int stdin = getStdInNo();// CLibrary.INSTANCE.fileno(NativeLibrary.getInstance("c").getFunction(getStdInName()).getPointer(0));
+
 
 	public interface CLibrary extends Library
 	{
@@ -125,11 +129,12 @@ public class PosixProcess extends AbstractProcess
 		 */
 		int chdir(String path);
 
-		static final int	WNOHANG		= 1;	/* don't hang in wait */
-		static final int	WUNTRACED	= 2;	/*
-												 * tell about stopped, untraced
-												 * children
-												 */
+    Pointer getcwd( Memory buffer, short size );
+
+    static final int WNOHANG   = 1; /* don't hang in wait */
+    static final int WUNTRACED = 2; /*
+                                     * tell about stopped, untraced children
+                                     */
 
 		/*
 		 * int fputc (int c, FILEstream)
@@ -719,9 +724,7 @@ public class PosixProcess extends AbstractProcess
 		// fork a child process
 		if ((pid = CLibrary.INSTANCE.fork()) == 0)
 		{
-			int stdout = getStdOutNo();
-			int stderr = getStdErrNo();// CLibrary.INSTANCE.fileno(NativeLibrary.getInstance("c").getFunction(getStdErrName()).getPointer(0));
-			int stdin = getStdInNo();// CLibrary.INSTANCE.fileno(NativeLibrary.getInstance("c").getFunction(getStdInName()).getPointer(0));
+			System.out.println("fork 0");
 
 			// closeDescriptors();
 
@@ -729,6 +732,8 @@ public class PosixProcess extends AbstractProcess
 			if (getWorkingDir() != null)
 				if (CLibrary.INSTANCE.chdir(getWorkingDir()) != 0)
 					log("could not set working dir");
+			
+			System.out.println("fork 1");
 
 			// set priority
 			if (_priority == PRIORITY_BELOW_NORMAL)
@@ -753,6 +758,7 @@ public class PosixProcess extends AbstractProcess
 			}
 			if (getUser() != null)
 				switchUser(getUser(), getPassword());
+			System.out.println("fork 2");
 
 			// try
 			// {
@@ -875,7 +881,7 @@ public class PosixProcess extends AbstractProcess
 			 */
 
 			// System.out.println("parent");
-			if (_pipeStreams && _teeName == null && _tmpPath == null)
+			if (_pipeStreams && _teeName == null)
 			{
 				writefd(in_fd, _inPipe[1]);
 				writefd(out_fd, _outPipe[0]);
@@ -901,18 +907,30 @@ public class PosixProcess extends AbstractProcess
 			executor.execute(new Runnable()
 			{
 
-				public void run()
-				{
-					int r = 0;
-						r = CLibrary.INSTANCE.waitpid(_pid, status, 0);
-						if (_logger != null)
-							_logger.info("waitpid "+r +" "+status.getValue());
-					if (r == _pid)
-						_exitCode = status.getValue();
-					if (_logger != null)
-						_logger.info("exit code linux process " + _exitCode);
-					_terminated = true;
-				}
+        public void run()
+        {
+          int r = 0;
+          while ( r != _pid && r != -1 )
+          {
+            r = CLibrary.INSTANCE.waitpid( _pid, status, 0 );
+            if ( _logger != null )
+              _logger.info( "waitpid " + r + " " + status.getValue() );
+          }
+          if ( r == _pid )
+          {
+            int code = status.getValue();
+
+            // Exited Normally
+            if ( WIFEXITED( code ) != 0 )
+              _exitCode = WEXITSTATUS( code );
+            // Exited Ab-Normally
+            else
+              _exitCode = 0;
+          }
+          if ( _logger != null )
+            _logger.info( "exit code posix process: " +status.getValue()+" application: "+ _exitCode );
+          _terminated = true;
+        }
 
 			});
 
@@ -930,19 +948,24 @@ public class PosixProcess extends AbstractProcess
 
 	}
 
-	protected File createRWfile(String path, String fname) throws IOException
-	{
-		File result = new File(path, fname);
-		if (!result.exists())
-		{
-			// result.createNewFile();
-		}
-		String name = result.getCanonicalPath();
-		// System.out.println("chmod 777 " + name);
-		// Runtime.getRuntime().exec("chmod 777 " + name);
-		// int res = CLibrary.INSTANCE.chmod(name, 777);
-		// if (res != 0)
-		// System.out.println("chmod failed "+res);
+  public int WIFEXITED( int code ) {
+    return (code & 0xFF);
+  }
+
+  public int WEXITSTATUS( int code ) {
+    return ((code >> 8) & 0xFF);
+  }
+
+  protected File createRWfile( String path, String fname ) throws IOException
+  {
+    File result = new File( path, fname );
+    result.deleteOnExit();
+    /*
+     * String absPath = result.getAbsolutePath(); System.out.println("PosixProcess.createRWfile "+absPath); if
+     * (!result.exists()) { result.createNewFile(); } result.deleteOnExit(); String name = result.getCanonicalPath();
+     * System.out.println("chmod 777 " + name); //Runtime.getRuntime().exec("chmod 777 " + name); int res =
+     * CLibrary.INSTANCE.chmod(absPath, 777); if (res != 0) System.out.println("chmod failed "+res);
+     */
 
 		return result;
 	}
@@ -1275,7 +1298,7 @@ public class PosixProcess extends AbstractProcess
 	private String getCommandInternal()
 	{
 		String result = _utils.readFile("/proc/" + getPid() + "/cmdline");
-		if (result == null)
+		if (result == null || result.length() == 0)
 			result = "?";
 		// System.out.println("cmd line: "+result);
 		return result;
@@ -1385,7 +1408,7 @@ public class PosixProcess extends AbstractProcess
 			return null;
 		}
 		int gid = new CLibrary.passwd(p).getGid();
-		System.out.println("default group gid " + gid);
+		//System.out.println("default group gid " + gid);
 		Pointer pg = CLibrary.INSTANCE.getgrgid(gid);
 		if (pg == null)
 		{
@@ -1463,7 +1486,7 @@ public class PosixProcess extends AbstractProcess
 				m.find();
 				// get ruid
 				int ruid = Integer.parseInt(m.group(1));
-				System.out.println("rudi " + ruid);
+				//System.out.println("rudi " + ruid);
 				Pointer po = CLibrary.INSTANCE.getpwuid(ruid);
 				if (po == null)
 					System.out.println("could not get user");
@@ -1598,13 +1621,13 @@ public class PosixProcess extends AbstractProcess
 		return _terminated;
 	}
 
-	public boolean setWorkingDirectory(String name)
+	public boolean changeWorkingDir(String name)
 	{
 		File f = new File(name);
 		String dir;
 		if (!f.exists() || !f.isDirectory())
 		{
-			log("setWorkingDirectory failed. file not found " + name);
+			log("changeWorkingDirectory failed. file not found " + name);
 			return false;
 		}
 		else

@@ -19,6 +19,7 @@ import org.rzo.netty.ahessian.rpc.callback.Callback;
 import org.rzo.netty.ahessian.rpc.callback.CallbackReplyMessage;
 import org.rzo.netty.ahessian.rpc.callback.ClientCallback;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCReplyMessage;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 
 /**
  * Future object returned when executing a remote method invocation.
@@ -38,7 +39,7 @@ public class HessianProxyFuture implements Future<Object>, Constants
 	/** result of the invocation. */
 	private HessianRPCReplyMessage	_result			= null;
 
-	private Lock			_lock			= new ReentrantLock();
+	private Lock			_lock			= new MyReentrantLock();
 	private Condition		_resultReceived	= _lock.newCondition();
 	private Collection<Runnable> _listeners = Collections.synchronizedCollection(new ArrayList<Runnable>());
 	private volatile Map<Long, ClientCallback> _callbacks = Collections.synchronizedMap(new HashMap());
@@ -184,11 +185,17 @@ public class HessianProxyFuture implements Future<Object>, Constants
 	public void addListener(Runnable listener)
 	{
 		_lock.lock();
+		try
+		{
 		if (isDone())
 			listener.run();
 		else
 			_listeners.add(listener);
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 	}
 
 	/**

@@ -27,13 +27,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.ConsoleHandler;
-import java.util.logging.FileHandler;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -55,6 +56,7 @@ import org.apache.commons.configuration.Configuration;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.JdkLogger2Factory;
 import org.rzo.yajsw.Constants;
+import org.rzo.yajsw.YajswVersion;
 import org.rzo.yajsw.action.Action;
 import org.rzo.yajsw.action.ActionFactory;
 import org.rzo.yajsw.cache.Cache;
@@ -64,6 +66,7 @@ import org.rzo.yajsw.controller.Message;
 import org.rzo.yajsw.controller.jvm.Controller;
 import org.rzo.yajsw.io.CircularBuffer;
 import org.rzo.yajsw.log.DateFileHandler;
+import org.rzo.yajsw.log.MyFileHandler;
 import org.rzo.yajsw.log.MyLogger;
 import org.rzo.yajsw.log.PatternFormatter;
 import org.rzo.yajsw.os.OperatingSystem;
@@ -77,11 +80,13 @@ import org.rzo.yajsw.timer.Timer;
 import org.rzo.yajsw.timer.TimerFactory;
 import org.rzo.yajsw.tray.WrapperTrayIconFactory;
 import org.rzo.yajsw.tray.ahessian.server.AHessianJmxServer;
+import org.rzo.yajsw.util.CaseInsensitiveMap;
 import org.rzo.yajsw.util.DaemonThreadFactory;
-import org.rzo.yajsw.util.SimpleThreadFactory;
+import org.rzo.yajsw.util.MyReentrantLock;
 import org.rzo.yajsw.util.Utils;
 
 import com.sun.jna.Platform;
+import com.sun.jna.PlatformEx;
 
 public abstract class AbstractWrappedProcess implements WrappedProcess, Constants, AbstractWrappedProcessMBean
 {
@@ -103,7 +108,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	/** The Constant executor. */
 	protected static final Executor		executor					= Executors.newCachedThreadPool(new DaemonThreadFactory("wrappedProcess"));
 
-	protected static final Executor		scriptExecutor				= Executors.newCachedThreadPool(new SimpleThreadFactory("scriptExecutor"));
+	protected static final ThreadPoolExecutor		scriptExecutor				= (ThreadPoolExecutor) Executors.newCachedThreadPool(new DaemonThreadFactory("scriptExecutor"));
 
 	/** The _first restart time. */
 	protected long						_firstRestartTime;
@@ -113,6 +118,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	Set									_startupExitCodes			= new HashSet();
 	/** The _shutdown exit codes. */
 	Set									_shutdownExitCodes			= new HashSet();
+	Set									_stopExitCodes				= new HashSet();
 	/** The _exit code default restart. */
 	boolean								_exitCodeDefaultRestart		= false;
 	/** The _local configuration. */
@@ -148,6 +154,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	/** The _successful invocation time. */
 	long								_successfulInvocationTime;
 	MultiMap							_listeners					= MultiValueMap.decorate(new HashMap(), HashSet.class);
+	MultiMap							_userListeners				= MultiValueMap.decorate(new HashMap(), HashSet.class);
 
 	String								_triggerLine;
 	Condition							_condition;
@@ -180,7 +187,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	
 	volatile boolean _stopper = false;
 	
-	Lock _stoppingHintLock = new ReentrantLock();
+	Lock _stoppingHintLock = new MyReentrantLock();
 	volatile long _stoppingHint = 0;
 	volatile long _stoppingHintSetTime = 0;
 	volatile boolean _appReportedReady = false;
@@ -198,8 +205,11 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		Map utils = new HashMap();
 		utils.put("util", new Utils(this));
 		_config = new YajswConfigurationImpl(_localConfiguration, _useSystemProperties, utils);
+		getTmpPath();
+		getWrapperLogger().warning("YAJSW: "+YajswVersion.YAJSW_VERSION);
+		getWrapperLogger().warning("OS   : "+YajswVersion.OS_VERSION);
+		getWrapperLogger().warning("JVM  : "+YajswVersion.JAVA_VERSION);
 
-		getWrapperLogger().info("init ");
 		if (!_config.isLocalFile())
 			if (_cache == null)
 			{
@@ -256,6 +266,24 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 					}
 
 			}
+			if ("STOP".equals(value))
+			{
+				String postfix = key.substring(key.lastIndexOf(".") + 1);
+				if ("default".equals(postfix))
+				// do nothing
+				{
+				}
+				else
+					try
+					{
+						_stopExitCodes.add(Integer.parseInt(postfix));
+					}
+					catch (Exception ex)
+					{
+						getWrapperLogger().info("error evaluating " + key + " " + ex.getMessage());
+					}
+
+			}
 		}
 
 		if (_timer == null)
@@ -288,22 +316,50 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 
 		// if we are not running as a sevice -> spawn the tray icon as a
 		// separate process
-		if ((!_reconnecting) && _config.getBoolean("wrapper.tray", false) && _trayIconProcess == null && !isService())
+		if ((!_reconnecting) && _config.getBoolean("wrapper.tray", false) && _trayIconProcess == null && !isService() && _config.getBoolean("wrapper.tray.spawn_process", true))
 		{
-			_trayIconProcess = WrapperTrayIconFactory.startTrayIconProcess(_config);
+			_trayIconProcess = WrapperTrayIconFactory.startTrayIconProcess(_config, getWrapperLogger());
 		}
 
 		// if jmx is required -> start jmx rmi remote service
 		if (_config.getBoolean("wrapper.jmx", false))
 			startJMXRmiService();
 
-		configStateChangeListeners();
+		// -> redo if we reload the configuration
+		configStateChangeListeners(); 
 		configShutdownHook();
 
 		String clusterScript = _config.getString("wrapper.windows.cluster.script", null);
 		configClusterScript(clusterScript);
+		cleanupTmp();
 		_init = true;
 
+	}
+	
+	private void cleanupTmp()
+	{
+		if (_config != null && !_config.getBoolean("wrapper.cleanup_tmp", true) && (_tmpPath != null))
+		{
+			File t = new File(_tmpPath);
+			if (t.exists())
+			{
+				cleanupFolder(t);
+			}
+		}
+	}
+
+	private void cleanupFolder(File t)
+	{
+		File[] files = t.listFiles();
+		for (File f : files)
+		{
+			if (f.getName().startsWith("err_"))
+				f.delete();
+			else if (f.getName().startsWith("in_"))
+			f.delete();
+			else if (f.getName().startsWith("out_"))
+			f.delete();
+		}
 	}
 
 	private void configClusterScript(String clusterScript)
@@ -312,7 +368,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		{
 			List args = _config.getList("wrapper.windows.cluster.script.args", new ArrayList());
 			int timeout = _config.getInt("wrapper.windows.cluster.script.timeout", 0);
-			final Script script = ScriptFactory.createScript(clusterScript, "", this, args, getInternalWrapperLogger(), timeout);
+			final Script script = ScriptFactory.createScript(clusterScript, "", this, args, getInternalWrapperLogger(), timeout, _config.getString("wrapper.script.encoding"), _config.getBoolean("wrapper.script.reload", false));
 			if (script == null)
 				return;
 			try
@@ -386,9 +442,17 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 				}
 
 			};
+			try
+			{
 			Runtime.getRuntime().addShutdownHook(hook);
 			// remember the hook so that we can remove it to avoid mem leaks
 			_shutdownHooks.add(hook);
+			}
+			catch (IllegalStateException ex)
+			{
+				// ignore if we are already shutting down the jvm.
+				// this may be the case if we are configuring a stopper process from within a shutdown hook.
+			}
 		}
 			
 
@@ -396,21 +460,27 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 
 	private void configStateChangeListeners()
 	{
-		Iterator listeners = _config.getKeys("wrapper.script");
-		for (Iterator it = listeners; it.hasNext();)
+		Iterator listenersIterator = _config.getKeys("wrapper.script");
+		// remove existing listeners. these may have changed due to config reload
+		List<String> listeners = new ArrayList();
+		for (Iterator it = listenersIterator; it.hasNext();)
+			listeners.add((String)it.next());
+		Collections.sort(listeners, new AlphanumComparator());
+		_listeners.clear();
+		_listeners.putAll(_userListeners);
+		for (String key : listeners)
 		{
-			String key = (String) it.next();
-			if (!key.endsWith(".args"))
+			if (!key.endsWith(".args") && !key.endsWith(".encoding")&& !key.endsWith(".reload")&& !key.endsWith(".timeout"))
 			{
 				String value = _config.getString(key);
 				List args = _config.getList(key + ".args", new ArrayList());
 				int timeout = _config.getInt(key + ".timeout", 0);
 
 				String state = key.substring(key.lastIndexOf(".") + 1);
-				final Script script = ScriptFactory.createScript(value, state, this, args, getInternalWrapperLogger(), timeout);
+				final Script script = ScriptFactory.createScript(value, state, this, args, getInternalWrapperLogger(), timeout, _config.getString("wrapper.script.encoding"), _config.getBoolean("wrapper.script.reload", false));
 				int iState = toIntState(state);
 				if (iState >= 0 && script != null)
-					addStateChangeListener(iState, new StateChangeListener()
+					addStateChangeListenerInternal(iState, new StateChangeListener()
 					{
 
 						public void stateChange(int newState, int oldState)
@@ -423,7 +493,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		}
 
 		if (_haltWrapperOnApp)
-			addStateChangeListener(STATE_IDLE, new StateChangeListener()
+			addStateChangeListenerInternal(STATE_IDLE, new StateChangeListener()
 			{
 				public void stateChange(int newState, int oldState)
 				{
@@ -676,7 +746,18 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	{
 		if (_shutdownExitCodes.contains(_osProcess.getExitCode()))
 		{
-			getWrapperLogger().info("shutdown process due to exit code rule");
+			getWrapperLogger().info("shutdown wrapper due to exit code rule");
+			return true;
+		}
+
+		return false;
+	}
+
+	protected boolean exitCodeStop()
+	{
+		if (_stopExitCodes.contains(_osProcess.getExitCode()))
+		{
+			getWrapperLogger().info("stop process due to exit code rule");
 			return true;
 		}
 
@@ -813,6 +894,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		if (!saveLockFile())
 			return;
 		savePidFile();
+		cleanupTmp();
 		if (_timer.isHasTrigger() && !_timer.isTriggered())
 			_timer.start();
 		if (_condition.isHasTrigger() && !_condition.isTriggered())
@@ -860,13 +942,17 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 			}
 		}
 
-		getWrapperLogger().info("starting Process");
+		if (_debug)
+			getWrapperLogger().info("starting Process");
 
 		if (_wrapperStarted == null)
 			_wrapperStarted = new Date();
 
 		if (_config.getBoolean("wrapper.restart.reload_configuration", DEFAULT_RELOAD_CONFIGURATION))
+		{
 			reloadConfiguration();
+			configStateChangeListeners();
+		}
 
 		if (_debug)
 			getWrapperLogger().info("starting controller");
@@ -921,7 +1007,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		Map missingRegexTriggerActions = getMissingRegexTriggerActions();
 		_osProcess.setLogger(getWrapperLogger());
 		_exitCode = -3;
-		getWrapperLogger().info("spawning wrapped process");
+		if (_debug)
+			getWrapperLogger().info("spawning wrapped process");
 		_controller.beginWaitForStartup();
 		if (_osProcess.start())
 		{
@@ -993,8 +1080,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		_osProcess.setUser(_config.getString("wrapper.app.account"));
 		_osProcess.setPassword(_config.getString("wrapper.app.password"));
 
-		if (_debug)
-			_osProcess.setDebug(true);
+		_osProcess.setDebug(_debug);
 
 		String workingDir = _config.getString("wrapper.working.dir", ".");
 		if (workingDir != null)
@@ -1007,7 +1093,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 			getWrapperLogger().info("working dir " + wd.getAbsolutePath());
 		}
 		_osProcess.setEnvironment(getProcessEnvironment(_config));
-		if (Platform.isWindows() && Platform.isWinVista() && _config.getBoolean("wrapper.service", false) && _config.getBoolean("wrapper.ntservice.logon_active_session", false))
+		if (Platform.isWindows() && PlatformEx.isWinVista() && _config.getBoolean("wrapper.service", false) && _config.getBoolean("wrapper.ntservice.logon_active_session", false))
 		{
 			_osProcess.setLogonActiveSession(true);
 			if (_debug)
@@ -1020,14 +1106,39 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 				getWrapperLogger().warning("WARNING: do not set wrapper.app.account & wrapper.ntservice.logon_active_session");
 		}
 		String desktop = _config.getString("wrapper.ntservice.desktop", null);
-		if (Platform.isWindows() && Platform.isWinVista() && _config.getBoolean("wrapper.service", false) && desktop != null)
+		if (Platform.isWindows() && PlatformEx.isWinVista() && _config.getBoolean("wrapper.service", false) && desktop != null)
 			_osProcess.setDesktop(desktop);
 
 			
 
 	}
-
+	
 	private List<String[]> getProcessEnvironment(YajswConfigurationImpl config)
+	{
+		// if user did not set env properties: use default.
+		if (!config.getKeys("wrapper.app.env").hasNext())
+		{
+			return null;
+		}
+		// get env. of this process from java
+		Map<String, String> jEnv = (Map<String, String>) (Platform.isWindows() ? new CaseInsensitiveMap(System.getenv()) : new HashMap<String, String>(System.getenv()));
+		// overwrite with user settings
+		for (Iterator keys = config.getKeys("wrapper.app.env"); keys.hasNext();)
+		{
+			String key = (String) keys.next();
+			String value = config.getString(key);
+			jEnv.put(key, value);
+		}
+		// change to string pair format
+		List<String[]> result = new ArrayList<String[]>();
+		for (Entry<String, String> entry : jEnv.entrySet())
+		{
+			result.add(new String[]{entry.getKey(), entry.getValue()});
+		}
+		return result;
+	}
+
+/*	private List<String[]> getProcessEnvironment(YajswConfigurationImpl config)
 	{
 		if (!config.getKeys("wrapper.app.env").hasNext())
 		{
@@ -1073,6 +1184,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 			return envKey1.equals(envKey2);
 
 	}
+	*/
 
 	/**
 	 * Pipe streams.
@@ -1081,7 +1193,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	 */
 	protected boolean pipeStreams()
 	{
-		return true;// getAppLogger() != null;
+		return _config.getBoolean("wrapper.console.pipestreams",false);
 
 	}
 
@@ -1130,6 +1242,18 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		};
 		_consoleHandler.setFormatter(getConsoleFormatter());
 		_consoleHandler.setLevel(getLogLevel(consoleLogLevel));
+		
+		String encoding = _config.getString("wrapper.log.encoding");
+		if (encoding != null)
+			try
+			{
+				_consoleHandler.setEncoding(encoding);
+			}
+			catch (Exception e)
+			{
+				e.printStackTrace();
+			}
+
 
 		return _consoleHandler;
 	}
@@ -1165,13 +1289,15 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 			String rollMode = _config.getString("wrapper.logfile.rollmode", "");
 			boolean append = !(rollMode.contains("WRAPPER") || rollMode.contains("JVM"));
 			int count = _config.getInt("wrapper.logfile.maxfiles", 0);
-			if (count == 0)
-				count = 16192;
 			int limit = getLogLimit();
-			_fileHandler = fileName.contains("%d") ? new DateFileHandler(fileName, limit, count, append) : new FileHandler(fileName, limit, count,
-					append);
-			_fileHandler.setFormatter(getFileFormatter());
-			_fileHandler.setLevel(getLogLevel(fileLogLevel));
+			if (count == 0 && limit > 0)
+				count = 16192;
+			else if (count == 0)
+				count = 1;
+			boolean rollDate = "DATE".equals(rollMode);
+			String encoding = _config.getString("wrapper.log.encoding");
+			_fileHandler = fileName.contains("%d") ? new DateFileHandler(fileName, limit, count, append, rollDate, getFileFormatter(), getLogLevel(fileLogLevel), encoding) : new MyFileHandler(fileName, limit, count,
+					append, getFileFormatter(), getLogLevel(fileLogLevel), encoding);
 		}
 		catch (Exception e)
 		{
@@ -1318,9 +1444,9 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		}
 		for (int i = 0; i < wFormat.length(); i++)
 		{
-			if (i > 0)
-				pattern += "|";
 			char c = wFormat.charAt(i);
+			if (i > 0 && c != '\r' && c != '\n')
+				pattern += "|";
 			switch (c)
 			{
 			case 'L':
@@ -1343,7 +1469,12 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 				;
 			}
 		}
-		pattern += "\n";
+		if (wFormat.endsWith("\r\n"))
+			pattern += "\r\n";
+		else if (wFormat.endsWith("\r"))
+			pattern += "\r";
+		else
+			pattern += System.getProperty("line.separator");
 		formatter.setLogPattern(pattern);
 		return formatter;
 	}
@@ -1355,7 +1486,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	 */
 	private String getLogFile()
 	{
-		String result = _config.getString("wrapper.logfile", "wrapper.log");
+		String result = _config.getString("wrapper.logfile", "log/wrapper.log");
 		File r = new File(result);
 		File f = null;
 		if (!r.isAbsolute())
@@ -1365,11 +1496,13 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		}
 		else
 			f = new File(result);
+		if (!f.getParentFile().exists())
+			f.getParentFile().mkdirs();
 		result = f.getAbsolutePath();
 		if (result.contains("ROLLNUM"))
 			result = result.replace("ROLLNUM", "%g");
-		else
-			result = result + ".%g";
+		//else
+		//	result = result + ".%g";
 		if (result.contains("YYYYMMDD"))
 			result = result.replace("YYYYMMDD", "%d");
 		return result;
@@ -1646,7 +1779,9 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	 */
 	private Object getTriggerScript(String script, String key, String[] args, int timeout)
 	{
-		final Script s = ScriptFactory.createScript(script, key, this, args, getInternalWrapperLogger(), timeout);
+		if (script == null || "".equals(script))
+			return null;
+		final Script s = ScriptFactory.createScript(script, key, this, args, getInternalWrapperLogger(), timeout, _config.getString("wrapper.script.encoding"), _config.getBoolean("wrapper.script.reload", false));
 		if (s == null)
 		{
 			this.getWrapperLogger().info("error initializing script " + script);
@@ -1654,18 +1789,22 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		}
 		this.getWrapperLogger().info("found script " + s.getScript());
 		// final String id = key;
-		final Logger wl=this.getWrapperLogger();
+
 		return new TriggerAction()
 		{
 			public Object execute(final String line)
 			{
+				if (scriptExecutor.getActiveCount() > 20)
+				{
+					getInternalWrapperLogger().warn("executing too many scripts concurrently -> aborting script execution");
+					return null;
+				}
 				scriptExecutor.execute(new Runnable()
 				{
 
 					public void run()
 					{
 						AbstractWrappedProcess.this.getWrapperLogger().info("start script " + s.getScript());
-						wl.severe("running script "+line+" with "+s.toString());
 						s.executeWithTimeout(new String(line));
 						AbstractWrappedProcess.this.getWrapperLogger().info("end script " + s.getScript());
 					}
@@ -1792,23 +1931,17 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	{
 		boolean externalStop = false;
 		String stopConfigName = _config.getString("wrapper.stop.conf");
-		getWrapperLogger().info("stop config name " + stopConfigName);
 		File stopConfigFile = null;
 		if (stopConfigName != null)
 		{
+			getWrapperLogger().info("using stop configuration " + stopConfigName);
 			stopConfigFile = new File(stopConfigName);
-			try
-			{
-				stopConfigName = stopConfigFile.getCanonicalPath();
-			}
-			catch (IOException e)
-			{
-				e.printStackTrace();
-			}
+			stopConfigName = stopConfigFile.getAbsolutePath();
 			externalStop = stopConfigFile.isFile() && stopConfigFile.exists();
+			if (!externalStop)
+				getWrapperLogger().severe("error accessing stop configuration "+stopConfigName);
 		}
 		WrappedProcess stopper = null;
-		getWrapperLogger().info("externalStop " + externalStop);
 		if (externalStop)
 		{
 			getWrapperLogger().info("starting stop application");
@@ -2129,7 +2262,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	{
 		if (_state == STATE_IDLE)
 			return;
-		final Lock lock = new ReentrantLock();
+		final Lock lock = new MyReentrantLock();
 		final java.util.concurrent.locks.Condition isIdle = lock.newCondition();
 		StateChangeListener listener = new StateChangeListener()
 		{
@@ -2142,7 +2275,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 			}
 
 		};
-		this.addStateChangeListener(STATE_IDLE, listener);
+		this.addStateChangeListenerInternal(STATE_IDLE, listener);
 		if (_state != STATE_IDLE)
 			try
 			{
@@ -2209,7 +2342,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	{
 		if (_internalLoggerFactory == null)
 			_internalLoggerFactory = new JdkLogger2Factory(getWrapperLogger());
-		return _internalLoggerFactory.getInstance("");
+		return _internalLoggerFactory.newInstance("");
 	}
 
 	/**
@@ -2230,6 +2363,19 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 	 */
 	public String getTmpPath()
 	{
+		if (_tmpPath == null)
+		{
+			_tmpPath = _config.getString("wrapper.tmp.path");
+			if (_tmpPath == null || _tmpPath.startsWith("?"))
+				_tmpPath = System.getProperty("jna_tmpdir");
+			if (_tmpPath == null || _tmpPath.startsWith("?"))
+				_tmpPath = System.getProperty("java.io.tmpdir");
+			if (_tmpPath == null || _tmpPath.startsWith("?"))
+				_tmpPath = "tmp";
+			File t = new File(_tmpPath);
+			if (!t.exists())
+				t.mkdirs();
+		}
 		return _tmpPath;
 	}
 
@@ -2369,7 +2515,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		{
 			List args = _config.getList("wrapper.restart.delay.script.args", null);
 			int timeout = _config.getInt("wrapper.restart.delay.script.timeout", 0);
-			_restartDelayScript = ScriptFactory.createScript(script, "", this, args, getInternalWrapperLogger(), 0);
+			_restartDelayScript = ScriptFactory.createScript(script, "", this, args, getInternalWrapperLogger(), 0, _config.getString("wrapper.script.encoding"), _config.getBoolean("wrapper.script.reload", false));
 		}
 		return _restartDelayScript;
 	}
@@ -2545,7 +2691,13 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 					_goblerLog.info("cannot run stream gobler with a null stream");
 					return;
 				}
-				InputStreamReader isr = new InputStreamReader(_inputStream);
+				String encoding = _config.getString("wrapper.log.encoding");
+				InputStreamReader isr;
+				if (encoding == null)
+					isr = new InputStreamReader(_inputStream);
+				else
+					isr = new InputStreamReader(_inputStream, encoding);
+					
 				BufferedReader br = new BufferedReader(isr);
 				String line = null;
 				int k = 0;
@@ -2580,7 +2732,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 								if (obj instanceof TriggerAction)
 								{
 									TriggerAction action = (TriggerAction) obj;
-									getWrapperLogger().info("Trigger found: " + _actionTriggers[i]);
+									getWrapperLogger().info("Trigger found: " + _actionTriggers[i] + " in line: ");
+									getWrapperLogger().info(line);
 									action.execute(new String(line));
 								}
 								else if (obj instanceof Collection)
@@ -2589,7 +2742,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 									for (Iterator it = c.iterator(); it.hasNext();)
 									{
 										TriggerAction action = (TriggerAction) it.next();
-										getWrapperLogger().info("Trigger found: " + _actionTriggers[i]);
+										getWrapperLogger().info("Trigger found: " + action + " in line: ");
+										getWrapperLogger().info(line);
 										action.execute(new String(line));
 									}
 								}
@@ -2606,7 +2760,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 								if (obj instanceof TriggerAction)
 								{
 									TriggerAction action = (TriggerAction) obj;
-									getWrapperLogger().info("Trigger found: " + _actionTriggersRegex[i]);
+									getWrapperLogger().info("Trigger found: " + _actionTriggers[i] + " in line: ");
+									getWrapperLogger().info(line);
 									action.execute(new String(line));
 								}
 								else if (obj instanceof Collection)
@@ -2615,7 +2770,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 									for (Iterator it = c.iterator(); it.hasNext();)
 									{
 										TriggerAction action = (TriggerAction) it.next();
-										getWrapperLogger().info("Trigger found: " + _actionTriggersRegex[i]);
+										getWrapperLogger().info("Trigger found: " + _actionTriggers[i] + " in line: ");
+										getWrapperLogger().info(line);
 										action.execute(new String(line));
 									}
 								}
@@ -2632,8 +2788,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 								if (obj instanceof TriggerAction)
 								{
 									TriggerAction action = (TriggerAction) obj;
-									// getWrapperLogger().info("Trigger found: "
-									// + _missingActionTriggers[i]);
+									if (_debug)
+									  getWrapperLogger().info("found missing trigger : " + _missingActionTriggers[i]);
 									action.execute(new String(line));
 								}
 								// break;
@@ -2649,8 +2805,8 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 								if (obj instanceof TriggerAction)
 								{
 									TriggerAction action = (TriggerAction) obj;
-									// getWrapperLogger().info("Trigger found: "
-									// + _missingActionTriggersRegex[i]);
+									if (_debug)
+									  getWrapperLogger().info("found missing trigger : " + _missingActionTriggers[i]);
 									action.execute(new String(line));
 								}
 								// break;
@@ -2666,7 +2822,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 				// _goblerLog.info("gobler execption " + _name + " " +
 				// ioe.getMessage());
 				if (_debug)
-					_goblerLog.log(Level.INFO, " gobler exeception " + _name, ioe);
+					_goblerLog.log(Level.INFO, " gobler terminated " + _name + " "+ioe);
 			}
 			if (AbstractWrappedProcess.this._osProcess != null && _pid == AbstractWrappedProcess.this._osProcess.getPid()
 					&& AbstractWrappedProcess.this._osProcess.isRunning())
@@ -2678,7 +2834,7 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 								&& AbstractWrappedProcess.this._state != STATE_RESTART_STOP
 								&& AbstractWrappedProcess.this._state != STATE_RESTART_WAIT)
 						{
-							_goblerLog.warning("yajsw panicking: gobler stopped but process is still running -> restart process");
+							_goblerLog.warning("yajsw panicking: gobler terminated but process is still running -> restart process");
 							AbstractWrappedProcess.this.restartInternal();
 						}
 					}
@@ -2705,14 +2861,24 @@ public abstract class AbstractWrappedProcess implements WrappedProcess, Constant
 		}
 	}
 
-	public void addStateChangeListener(int state, StateChangeListener listener)
+	private void addStateChangeListenerInternal(int state, StateChangeListener listener)
 	{
 		_listeners.put(state, listener);
 	}
 
-	public void addStateChangeListener(StateChangeListener listener)
+	private void addStateChangeListenerInternal(StateChangeListener listener)
 	{
 		_listeners.put(999, listener);
+	}
+
+	public void addStateChangeListener(int state, StateChangeListener listener)
+	{
+		_userListeners.put(state, listener);
+	}
+
+	public void addStateChangeListener(StateChangeListener listener)
+	{
+		_userListeners.put(999, listener);
 	}
 
 	public void removeStateChangeListener(StateChangeListener listener)

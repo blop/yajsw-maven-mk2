@@ -29,7 +29,7 @@ import java.util.Arrays;
  * <a href="http://www.systemics.com/docs/cryptix/">Cryptix Development Team</a>.
  * <br>All rights reserved.
  * <p>
- * <b>$Revision: 1.1 $</b>
+ * <b>$Revision: 1.6 $</b>
  * @author  Raif S. Naffah
  * @author  David Hopwood
  * @since   Cryptix 2.2.2

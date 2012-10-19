@@ -1,6 +1,6 @@
 package org.rzo.yajsw.util;
 
-import org.apache.commons.vfs.cache.SoftRefFilesCache;
+import org.apache.commons.vfs2.cache.SoftRefFilesCache;
 import org.apache.commons.vfs2.FileName;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;

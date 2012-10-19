@@ -20,6 +20,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.rzo.yajsw.util.DaemonThreadFactory;
+import org.rzo.yajsw.util.MyReentrantLock;
 
 // TODO: Auto-generated Javadoc
 /**
@@ -32,7 +33,7 @@ public class TeeInputStream extends InputStream
 	Source[]						sources			= new Source[0];
 
 	/** The lock. */
-	ReentrantLock					lock			= new ReentrantLock();
+	ReentrantLock					lock			= new MyReentrantLock();
 
 	/** The data available. */
 	Condition						dataAvailable	= lock.newCondition();
@@ -232,7 +233,8 @@ public class TeeInputStream extends InputStream
 						}
 						catch (Exception ex)
 						{
-							ex.printStackTrace();
+							//ex.printStackTrace();
+							System.err.println("could not read from InputStream "+ex.getMessage());
 						}
 						lock.unlock();
 					}

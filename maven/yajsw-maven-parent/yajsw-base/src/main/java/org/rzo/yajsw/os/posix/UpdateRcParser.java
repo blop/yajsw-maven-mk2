@@ -43,6 +43,11 @@ public class UpdateRcParser
 		addStopLink(6, priority);
 	}
 
+	private void addStopLink(String level, int priority)
+	{
+		_stopLinks.add(_runLevelDir.replaceFirst("X", "" + level) + "/K" + priority + _serviceName);
+	}
+
 	private void addStopLink(int level, int priority)
 	{
 		_stopLinks.add(_runLevelDir.replaceFirst("X", "" + level) + "/K" + priority + _serviceName);
@@ -54,6 +59,11 @@ public class UpdateRcParser
 		addStartLink(3, priority);
 		addStartLink(4, priority);
 		addStartLink(5, priority);
+	}
+
+	private void addStartLink(String level, int priority)
+	{
+		_startLinks.add(_runLevelDir.replaceFirst("X", "" + level) + "/S" + priority + _serviceName);
 	}
 
 	private void addStartLink(int level, int priority)
@@ -82,30 +92,45 @@ public class UpdateRcParser
 			else
 			{
 				int i = 0;
-				int priority;
+				int priority=0;
+				String level="0";
 				String txt;
 
-				while (i < x.length)
-				{
-					txt = x[i++];
-					if (txt.trim().equals("start"))
-					{
-						priority = Integer.parseInt(x[i++]);
-						while (i < x.length && !".".equals(x[i].trim()))
-						{
-							int level = Integer.parseInt(x[i++]);
-							addStartLink(level, priority);
-							_startLevels += level + " ";
-						}
-					}
-					else if (txt.trim().equals("stop"))
-					{
-						priority = Integer.parseInt(x[i++]);
-						while (i < x.length && !".".equals(x[i].trim()))
-						{
-							int level = Integer.parseInt(x[i++]);
-							addStopLink(level, priority);
-							_stopLevels += level + " ";
+        while ( i < x.length )
+        {
+          txt = x[i++];
+          if ( txt.trim().equals( "start" ) )
+          {
+            priority = Integer.parseInt( x[i++] );
+            while ( i < x.length && !".".equals( x[i].trim() ) )
+            {
+              txt = x[i++].trim();
+
+              // Allow S for Single User Mode ( Solaris )
+              if ( txt.equalsIgnoreCase( "S" ) )
+                level = "S";
+              else
+                level = "" + Integer.parseInt( txt );
+
+              addStartLink( level, priority );
+              _startLevels += level + " ";
+            }
+          }
+          else if ( txt.trim().equals( "stop" ) )
+          {
+            priority = Integer.parseInt( x[i++] );
+            while ( i < x.length && !".".equals( x[i].trim() ) )
+            {
+              txt = x[i++].trim();
+
+              // Allow S for Single User Mode ( Solaris )
+              if ( txt.equalsIgnoreCase( "S" ) )
+                level = "S";
+              else
+                level = "" + Integer.parseInt( txt );
+
+              addStopLink( level, priority );
+              _stopLevels += level + " ";
 
 						}
 					}

@@ -11,11 +11,12 @@ import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.rzo.netty.ahessian.Constants;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 
 public class PushInputStreamConsumer extends SimpleChannelUpstreamHandler
 {
 
-	volatile Lock _lock = new ReentrantLock();
+	volatile Lock _lock = new MyReentrantLock();
 	AtomicInteger _consumerThreadsCount = new AtomicInteger(0);
 	
 	volatile InputStreamConsumer _consumer;
@@ -91,8 +92,14 @@ public class PushInputStreamConsumer extends SimpleChannelUpstreamHandler
             ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception 
             {
     	_lock.lock();
+    	try
+    	{
     	_consumer.setContext(ctx);
+    	}
+    	finally
+    	{
     	_lock.unlock();
+    	}
         ctx.sendUpstream(e);
     }
 

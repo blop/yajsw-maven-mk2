@@ -9,6 +9,7 @@ import org.rzo.yajsw.os.ProcessManager;
 import org.rzo.yajsw.os.ServiceManager;
 import org.rzo.yajsw.os.SystemInformation;
 import org.rzo.yajsw.os.posix.OperatingSystemPosix;
+import org.rzo.yajsw.os.posix.PosixProcess;
 
 public class OperatingSystemMacOsX extends OperatingSystemPosix
 {
@@ -35,6 +36,13 @@ public class OperatingSystemMacOsX extends OperatingSystemPosix
 	{
 		return null;
 	}
+	
+	@Override
+	public boolean setWorkingDir(String name)
+	{
+		return new MacOsXProcess().changeWorkingDir(name);
+	}
+
 
 	@Override
 	public ProcessManager processManagerInstance()

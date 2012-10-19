@@ -10,6 +10,7 @@ import java.nio.channels.FileChannel;
 
 import org.rzo.yajsw.os.Process;
 import org.rzo.yajsw.os.posix.PosixProcess;
+import org.rzo.yajsw.os.posix.bsd.macosx.MacOsXProcess;
 
 import com.sun.jna.Memory;
 
@@ -93,6 +94,7 @@ public class SolarisProcess extends PosixProcess
 	{
 		return 3;
 	}
+	
 
 	public static Process getProcess(int pid)
 	{
@@ -210,19 +212,52 @@ public class SolarisProcess extends PosixProcess
 
 	protected String getWorkingDirInternal()
 	{
+    String result = "";
+    String cwd;
+    boolean success = false;
+		String procCwd = "/proc/" + getPid() + "/cwd";
+    try
+    {
 
-		String f = "/proc/" + getPid() + "/cwd";
-		short BUFSIZE = 512;
-		Memory result = new Memory(BUFSIZE);
-		result.clear();
-		short size = CLibrary.INSTANCE.readlink(f, result, (short) (BUFSIZE - 1));
-		if (size <= 0)
-		{
-			System.out.println("error reading process working dir -> please edit wrapper.working.dir in configuration file");
-			return f;
-		}
-		result.setByte((long) size, (byte) 0);
-		return result.getString(0);
+  	 short BUFSIZE = 4096;
+		 Memory dir = new Memory(BUFSIZE);
+		 dir.clear();
+
+		 if( CLibrary.INSTANCE.getcwd(dir, BUFSIZE) != null )
+     {
+       cwd = dir.getString(0);
+       dir.clear();
+
+       if( CLibrary.INSTANCE.chdir(procCwd) == 0 )
+       {
+          if( CLibrary.INSTANCE.getcwd(dir, BUFSIZE) != null ){
+            result = new File(dir.getString(0)).getCanonicalPath();
+            success = true;
+          }
+          // Restore starting directory ( if different )
+          CLibrary.INSTANCE.chdir(cwd);
+       }
+
+     }
+
+     if( !success )
+       System.out.println("error reading process working dir -> please edit wrapper.working.dir in configuration file");
+
+    } catch (IOException e){  }
+
+    return result;
+
+//-KBG:		short BUFSIZE = 512;
+//-KBG:		Memory result = new Memory(BUFSIZE);
+//-KBG:		result.clear();
+//-KBG:		short size = CLibrary.INSTANCE.readlink(f, result, (short) (BUFSIZE - 1));
+//-KBG:		if (size <= 0)
+//-KBG:		{
+//-KBG:			System.out.println("error reading process working dir -> please edit wrapper.working.dir in configuration file");
+//-KBG:			return f;
+//-KBG:		}
+//-KBG:		result.setByte((long) size, (byte) 0);
+//-KBG:		return result.getString(0);
 
 		/*
 		 * String result = null; File f = new File("/proc/" + getPid() +

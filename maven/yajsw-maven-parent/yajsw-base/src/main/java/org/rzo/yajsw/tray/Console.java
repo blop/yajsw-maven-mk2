@@ -31,6 +31,7 @@ import javax.swing.WindowConstants;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Element;
 
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 import org.rzo.yajsw.util.DaemonThreadFactory;
 
 /**
@@ -70,7 +71,7 @@ public class Console extends JFrame
 	volatile boolean				_outputPaused		= false;
 	volatile String					_outputFilter		= null;
 	volatile LinkedList<String>		_outputLines		= new LinkedList<String>();
-	ReentrantLock					_outputLock			= new ReentrantLock();
+	ReentrantLock					_outputLock			= new MyReentrantLock();
 
 	/**
 	 * Instantiates a new console.

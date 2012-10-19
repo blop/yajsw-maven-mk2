@@ -15,7 +15,7 @@ import java.util.jar.Manifest;
 
 import org.rzo.yajsw.Constants;
 import org.rzo.yajsw.app.WrapperJVMMain;
-import org.apache.commons.lang.text.StrSubstitutor;
+
 public class WrapperLoader
 {
 	
@@ -165,23 +165,13 @@ public class WrapperLoader
 		classpath.add(new File(wrapperJar));
 		String[] clArr = cl.split(" ");
 		File parent = new File(wrapperJar).getParentFile();
-		StrSubstitutor x=new StrSubstitutor();
-		x.setEnableSubstitutionInVariables(true);
 		for (int i = 0; i < clArr.length; i++)
 		{
 			String file = clArr[i];
 			File myFile;
 			try
 			{
-				String replacement=x.replace(file);
-				if (!x.equals(file))
-				{
-					myFile =new File(file);
-				}
-				else
-				{
-					myFile = new File(parent, file);
-				}
+				myFile = new File(parent, file);
 				if (!myFile.exists() && logErrors)
 					System.out.println("WARNING: lib not found: " + myFile.getCanonicalPath());
 				classpath.add(myFile);
@@ -231,8 +221,6 @@ public class WrapperLoader
 	{
 		URL[] core = getWrapperClasspath("Wrapper-Core", true);
 		URL[] extended = getWrapperClasspath("Wrapper-Extended", false);
-		if (core==null) core=new URL[0];
-		if (extended==null) extended=new URL[0];
 		URL[] urls = new URL[core.length+ extended.length];
 		System.arraycopy(core, 0, urls, 0, core.length);
 		System.arraycopy(extended, 0, urls, core.length, extended.length);

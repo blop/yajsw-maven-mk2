@@ -10,13 +10,13 @@ set java_exe="java"
 set javaw_exe="javaw"
 
 rem location of the wrapper jar file. necessary lib files will be loaded by this jar. they must be at <wrapper_home>/lib/...
-set yajsw-version=0.0.1
+set yajsw-version=11.03
 set wrapper_name="yajsw-core-%yajsw-version%"
 set wrapper_jar="%wrapper_home%/../yajsw-core/target/%wrapper_name%-distribution.jar"
 set wrapper_app_jar="%wrapper_home%/wrapperApp.jar"
 
 rem setting java options for wrapper process. depending on the scripts used, the wrapper may require more memory.
-set wrapper_java_options=-Xmx90m
+set wrapper_java_options=-Xmx30m -Djna_tmpdir="%wrapper_home%/tmp"
 
 rem wrapper bat file for running the wrapper
 set wrapper_bat="%wrapper_home%/bat/wrapper.bat"

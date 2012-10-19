@@ -14,5 +14,8 @@ public interface CryptoConstants
 	// size in bytes
 	public static int    SYM_IV_SIZE = 8;
 	
+	// size of password in bytes
+	// password is used to avoid MITM attacks
+	public static int    PASSWORD_SIZE = 15;
 
 }

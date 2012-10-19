@@ -27,7 +27,7 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 	long[] _timeouts;
 	Map <T, Timeout> _timers = new HashMap<T, Timeout>();
 	Timer _timer;
-	Lock _lock = new ReentrantLock();
+	Lock _lock = new MyReentrantLock();
 	Condition _hasData = _lock.newCondition();
 	volatile boolean waiting = false;
 	int _size = 0;
@@ -103,7 +103,10 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 
 	public boolean offer(final T e, int group)
 	{
+		boolean result = false;
 		_lock.lock();
+		try
+		{
 		//if (_size == 0)
 			//System.out.println("LRUQueue not empty: "+ _name);
 		_size++;
@@ -112,7 +115,6 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 			Constants.ahessianLogger.warn("group "+group+" not defined -> using group 0");
 			group = 0;
 		}
-		boolean result = false;
 		final LinkedList<T> q = _queues[group];
 		result = q.offer((T) e);
 		if (q.size() >= _sizes[group])
@@ -135,9 +137,15 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 				public void run(Timeout arg0) throws Exception
 				{
 					_lock.lock();
+					try
+					{
 					q.remove(e);
 					Constants.ahessianLogger.warn("message timed out -> removed from queue "+e);
+					}
+					finally
+					{
 					_lock.unlock();
+					}
 				}
 				
 			}, _timeouts[group], TimeUnit.MILLISECONDS);
@@ -153,7 +161,11 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 			Constants.ahessianLogger.warn("", ex);
 		}
 
+		}
+		finally
+		{
 	_lock.unlock();	
+		}
 		return result;
 	}
 
@@ -207,19 +219,31 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 	public void clear()
 	{
 		_lock.lock();
+		try
+		{
 		for (int i=0; i<_queues.length; i++)
 		{
 			clear(i);
 		}
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 	}
 	
 	public void clear(int group)
 	{
 		_lock.lock();
+		try
+		{
 		if (_queues[group] != null)
 			_queues[group].clear();
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 	}
 
 	public boolean contains(Object o)
@@ -319,6 +343,8 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 	{
 		T result = null;
 		_lock.lock();
+		try
+		{
 		do
 			{
 			result = poll();
@@ -337,7 +363,11 @@ public class TimedBlockingPriorityQueue<T> implements MyBlockingQueue<T>
 		while (result == null);
 		if (result == _last)
 			_last = null;
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 		//if (_size == 0)
 		//	System.out.println("LRUQueue empty: "+_name);
 

@@ -5,7 +5,7 @@ sourceSets.main.java.srcDirs = ["$projectHome/src/ahessian"]
 // this project uses the ahessian sub-project
 dependencies {
 	  compile project(':hessian4')
-    compile group: 'netty', 							name: 'netty', 										version: '3.3.1.Final'
+    compile group: 'netty', 							name: 'netty', 										version: "$netty_version"
 }
 
 println '---------------------------'

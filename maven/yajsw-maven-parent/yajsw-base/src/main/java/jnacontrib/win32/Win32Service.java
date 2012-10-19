@@ -29,10 +29,11 @@ import jnacontrib.jna.Advapi32.SERVICE_STATUS_PROCESS;
 import org.rzo.yajsw.os.Service;
 import org.rzo.yajsw.os.ServiceInfo;
 import org.rzo.yajsw.os.ServiceInfoImpl;
+import org.rzo.yajsw.util.MyReentrantLock;
 
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
-import com.sun.jna.Platform;
+import com.sun.jna.PlatformEx;
 import com.sun.jna.Pointer;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.Kernel32Util;
@@ -52,7 +53,7 @@ abstract public class Win32Service
 	private int				startupTimeout		= 30000;
 	protected volatile int	checkPoint			= 0;
 	private boolean			autoReportStartup	= true;
-	private Lock			startupLock			= new ReentrantLock();
+	private Lock			startupLock			= new MyReentrantLock();
 	private Condition		startupCondition	= startupLock.newCondition();
 	private volatile boolean _stopping = false;
 	public volatile String _stopReason = null;
@@ -171,7 +172,7 @@ abstract public class Win32Service
 					
 				}
 				success = advapi32.ChangeServiceConfig2(service, WINSVC.SERVICE_CONFIG_DESCRIPTION, desc);
-				if (Platform.isWinVista() && "DELAYED_AUTO_START".equals(startType))
+				if (PlatformEx.isWinVista() && "DELAYED_AUTO_START".equals(startType))
 				{
 					Advapi32.SERVICE_DELAYED_AUTO_START_INFO delayedDesc = new Advapi32.SERVICE_DELAYED_AUTO_START_INFO();
 					delayedDesc.fDelayedAutostart = true;

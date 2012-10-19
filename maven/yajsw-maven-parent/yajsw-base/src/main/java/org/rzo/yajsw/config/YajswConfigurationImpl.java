@@ -25,11 +25,11 @@ import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.ConfigurationBinding;
 import org.apache.commons.configuration.ConfigurationConverter;
 import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.EnvironmentConfiguration;
 import org.apache.commons.configuration.FileOptionsProvider;
 import org.apache.commons.configuration.FileSystem;
 import org.apache.commons.configuration.GInterpolator;
 import org.apache.commons.configuration.Interpolator;
+import org.apache.commons.configuration.MapConfiguration;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.configuration.VFSFileSystem;
 import org.apache.commons.vfs2.FileObject;
@@ -40,7 +40,13 @@ import org.apache.commons.vfs2.provider.local.LocalFile;
 import org.jboss.netty.logging.InternalLogger;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.rzo.yajsw.config.jnlp.JnlpSupport;
+import org.rzo.yajsw.os.OperatingSystem;
+import org.rzo.yajsw.script.GroovyScript;
+import org.rzo.yajsw.util.CaseInsensitiveMap;
+import org.rzo.yajsw.util.CommonsLoggingAdapter;
 import org.rzo.yajsw.util.VFSUtils;
+
+import com.sun.jna.Platform;
 
 // TODO: Auto-generated Javadoc
 /**
@@ -133,7 +139,8 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 	 * 
 	 * @see org.rzo.yajsw.AjswConfiguration#init()
 	 */
-	public void init()
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+  public void init()
 	{
 		if (_init)
 			return;
@@ -143,6 +150,8 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 		 * in.getDefaultLookup(); in.setDefaultLookup(new
 		 * MyStrLookup(orgLookup));
 		 */
+		if (_scriptUtils == null)
+			_scriptUtils = new HashMap();
 		_interpolator = new GInterpolator(this, true, null, _scriptUtils);
 		try
 		{
@@ -170,6 +179,9 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 			if (debug)
 				log.debug("added system configuration ");
 		}
+		//_systemConfiguration.addConfiguration(new EnvironmentConfiguration());
+    _systemConfiguration.addConfiguration(new MapConfiguration(!OperatingSystem.instance().isPosix() ? new CaseInsensitiveMap(System.getenv()) : new HashMap(System.getenv())));
+
 
 		addConfiguration(_systemConfiguration);
 		// check if we have config file
@@ -207,6 +219,7 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 				{
 					// enable VFS
 					FileSystem fs = new VFSFileSystem();
+					fs.setLogger(new CommonsLoggingAdapter(log));
 					fs.setFileOptionsProvider(new FileOptionsProvider()
 					{
 
@@ -241,6 +254,7 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 					_fileConfiguration = new PropertiesConfiguration();
 					// then set the file name and load it
 					_fileConfiguration.setFileName(configFile);
+					/*
 					try
 					{
 						_fileConfiguration.setBasePath(new File(".").getCanonicalPath());
@@ -250,8 +264,55 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-					_fileConfiguration.append(_systemProperties);
+					*/
+					
+					_fileConfiguration.append(_systemConfiguration);
+					if (_interpolator != null)
+						try
+						{
+							_fileConfiguration.setInterpolator(new GInterpolator(_fileConfiguration, true, null, _scriptUtils));
+						}
+						catch (Exception e)
+						{
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						System.out.println("platform "+_systemConfiguration.getString("platform"));
 					_fileConfiguration.load();
+					String encoding = _fileConfiguration.getString("wrapper.conf.encoding");
+					// if we have an encoding: reload the file with the given encoding.
+					if (encoding != null)
+					{
+						_fileConfiguration = new PropertiesConfiguration();
+						_fileConfiguration.setEncoding(encoding);
+						// then set the file name and load it
+						_fileConfiguration.setFileName(configFile);
+						/*
+						try
+						{
+							_fileConfiguration.setBasePath(new File(".").getCanonicalPath());
+						}
+						catch (IOException e)
+						{
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						*/
+						_fileConfiguration.append(_systemConfiguration);
+						if (_interpolator != null)
+							try
+							{
+								_fileConfiguration.setInterpolator(new GInterpolator(_fileConfiguration, true, null, _scriptUtils));
+							}
+							catch (Exception e)
+							{
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+
+						_fileConfiguration.load();
+					}
+
 					addConfiguration(_fileConfiguration);
 				}
 				catch (ConfigurationException e)
@@ -284,7 +345,7 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 
 		// load configuration from System Environement
 		//addConfiguration(getConfiguration(System.getenv()));
-		_systemConfiguration.addConfiguration(new EnvironmentConfiguration());
+		//_systemConfiguration.addConfiguration(new EnvironmentConfiguration());
 		_isStopper = this.getBoolean("wrapper.stopper", false);
 		try
 		{
@@ -294,6 +355,20 @@ public class YajswConfigurationImpl extends CompositeConfiguration implements Ya
 		{
 			ex.printStackTrace();
 		}
+		
+		for (Iterator it = getKeys("wrapper.config.script"); it.hasNext(); )
+		try
+		{
+			String key = (String) it.next();
+			String script = getString(key);
+			String bind = key.substring(key.lastIndexOf(".")+1);
+			_scriptUtils.put(bind, new GroovyScript(script, "", null, null, 0, log, null, false));
+		}
+		catch (Exception e)
+		{
+			log.error("error reading script", e);
+		}
+		
 
 		_init = true;
 	}

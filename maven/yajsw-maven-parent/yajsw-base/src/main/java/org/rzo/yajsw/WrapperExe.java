@@ -11,6 +11,7 @@
 package org.rzo.yajsw;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -28,9 +29,7 @@ import org.apache.commons.cli2.commandline.Parser;
 import org.apache.commons.cli2.option.DefaultOption;
 import org.apache.commons.cli2.util.HelpFormatter;
 import org.apache.commons.cli2.validation.FileValidator;
-import org.apache.commons.cli2.validation.InvalidArgumentException;
 import org.apache.commons.cli2.validation.NumberValidator;
-import org.apache.commons.cli2.validation.Validator;
 import org.apache.commons.configuration.Configuration;
 import org.apache.commons.configuration.MapConfiguration;
 import org.rzo.yajsw.boot.WrapperLoader;
@@ -46,7 +45,7 @@ import org.rzo.yajsw.wrapper.WrappedProcessFactory;
 import org.rzo.yajsw.wrapper.WrappedProcessList;
 import org.rzo.yajsw.wrapper.WrappedService;
 
-import com.sun.jna.Platform;
+import com.sun.jna.PlatformEx;
 
 // TODO: Auto-generated Javadoc
 /**
@@ -121,10 +120,11 @@ public class WrapperExe
 	static final int			OPTION_QX			= 11;
 
 	/** The Constant CONF_FILE. */
-	static final String			CONF_FILE			= "confFile";
+	//static final String			CONF_FILE			= "confFile";
 
 	/** The Constant PROPERTIES. */
-	static final String			PROPERTIES			= "properties";
+	//static final String			PROPERTIES			= "properties";
+	static final String			ARGS			= "arguments";
 
 	/** The Constant PID. */
 	static final String			PID					= "pid";
@@ -138,7 +138,7 @@ public class WrapperExe
 
 	static int					_exitCode			= 0;
 
-	static Map<String, String>	_properties			= new HashMap<String, String>();
+	static Map<String, Object>	_properties			= new HashMap<String, Object>();
 
 	private static WrappedService getService()
 	{
@@ -161,9 +161,14 @@ public class WrapperExe
 	 */
 	public static void main(String[] args)
 	{
+		System.out.println("YAJSW: "+YajswVersion.YAJSW_VERSION);
+		System.out.println("OS   : "+YajswVersion.OS_VERSION);
+		System.out.println("JVM  : "+YajswVersion.JAVA_VERSION);
 		String wrapperJar = WrapperLoader.getWrapperJar();
 		String homeDir = new File(wrapperJar).getParent();
-		OperatingSystem.instance().setWorkingDir(homeDir);
+		if (!OperatingSystem.instance().setWorkingDir(homeDir))
+			System.out.println("could not set working dir, pls check configuration or user rights: "+homeDir);
+		
 		// System.out.println(System.getProperty("java.class.path"));
 		buildOptions();
 		parseCommand(args);
@@ -275,7 +280,7 @@ public class WrapperExe
 		System.out.println();
 		boolean result = w.uninstall();
 		
-			if (Platform.isWinVista() && w.requiresElevate())
+			if (PlatformEx.isWinVista() && w.requiresElevate())
 			{
 				System.out.println("try uac elevate");
 				WindowsXPProcess.elevateMe();
@@ -299,7 +304,7 @@ public class WrapperExe
 		int i = 0;
 		while (w.isInstalled() && i < 10)
 		{
-			if (Platform.isWinVista() && w.requiresElevate())
+			if (PlatformEx.isWinVista() && w.requiresElevate())
 			{
 				System.out.println("try uac elevate");
 				WindowsXPProcess.elevateMe();
@@ -321,7 +326,7 @@ public class WrapperExe
 
 		
 		boolean result = w.install();
-		if (Platform.isWinVista() && w.requiresElevate())
+		if (PlatformEx.isWinVista() && w.requiresElevate())
 		{
 			System.out.println("try uac elevate");
 			WindowsXPProcess.elevateMe();
@@ -348,7 +353,7 @@ public class WrapperExe
 		try
 		{
 			w.stop();
-			if (Platform.isWinVista() && w.requiresElevate())
+			if (PlatformEx.isWinVista() && w.requiresElevate())
 			{
 				System.out.println("try uac elevate");
 				WindowsXPProcess.elevateMe();
@@ -419,7 +424,7 @@ public class WrapperExe
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-		if (Platform.isWinVista() && w.requiresElevate())
+		if (PlatformEx.isWinVista() && w.requiresElevate())
 		{
 			System.out.println("try uac elevate");
 			WindowsXPProcess.elevateMe();
@@ -529,7 +534,7 @@ public class WrapperExe
 		System.out.println(w.isDisabled(state));
 		System.out.print("Paused      : ");
 		System.out.println(w.isPaused(state));
-		System.out.print("Unkown      : ");
+		System.out.print("Unknown      : ");
 		System.out.println(w.isStateUnknown(state));
 	}
 
@@ -633,11 +638,28 @@ public class WrapperExe
 		cmds = cl.getOptions();
 		try
 		{
+			List arguments = cl.getValues(ARGS);
+			properties = new ArrayList();
+			confFileList = new ArrayList();
+			for (Object obj : arguments)
+			{
+				String arg = (String) obj;
+				if (Pattern.matches("wrapper\\..*=.*", arg))
+					properties.add(arg);
+				else
+					confFileList.add(arg);					
+			}
+			if (confFileList.isEmpty())
+				System.out.println("no wrapper config file found ");
+			else
+				confFile = (String) confFileList.get(0);
+			/*
 			confFileList = cl.getValues(CONF_FILE);
 			if (confFileList == null || confFileList.isEmpty())
 				System.out.println("no wrapper config file found ");
 			else
 				confFile = (String) confFileList.get(0);
+				*/
 		}
 		catch (Exception ex)
 		{
@@ -653,7 +675,7 @@ public class WrapperExe
 		{
 			// no defaults -> maybe ok
 		}
-		properties = cl.getValues(PROPERTIES);
+		//properties = cl.getValues(PROPERTIES);
 
 	}
 
@@ -727,9 +749,10 @@ public class WrapperExe
 		FileValidator fValidator = VFSFileValidator.getExistingFileInstance().setBase(".");
 		fValidator.setFile(false);
 		// fValidator.setReadable(true);
-		gBuilder.withOption(aBuilder.reset().withName(CONF_FILE).withDescription("is the wrapper.conf to use.  Name must be absolute or relative")
-				.withMinimum(0).withMaximum(10).create());
+		gBuilder.withOption(aBuilder.reset().withName(ARGS).withDescription("Arguments: a list of configuration files, for example conf/wrapper.conf followed by an optional list of configuration name-value pairs, for example wrapper.debug=true")
+				.withMinimum(1).create());
 
+		/*
 		Validator pValidator = new Validator()
 		{
 
@@ -750,6 +773,7 @@ public class WrapperExe
 		gBuilder.withOption(aBuilder.reset().withName(PROPERTIES).withDescription(
 				"are configuration name-value pairs which override values. For example: wrapper.debug=true").withMinimum(0).withValidator(pValidator)
 				.create());
+				*/
 
 		gBuilder.withMaximum(3);
 		group = gBuilder.create();

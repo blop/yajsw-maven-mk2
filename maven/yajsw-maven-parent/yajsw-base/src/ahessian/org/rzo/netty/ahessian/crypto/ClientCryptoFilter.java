@@ -6,6 +6,7 @@ import java.security.KeyFactory;
 import java.security.SecureRandom;
 import java.security.spec.KeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Arrays;
 
 import javax.crypto.Cipher;
 
@@ -29,6 +30,14 @@ public class ClientCryptoFilter extends SimpleChannelHandler implements CryptoCo
 	private int _bytesRead;
 	private SecureRandom _secureRandom = new SecureRandom();
 	private ChannelEvent _connectedEvent;
+	private byte[] _password = new byte[PASSWORD_SIZE];
+	
+	public ClientCryptoFilter()
+	{
+		super();
+		Arrays.fill(_password, (byte)0);
+	}
+
 
 	
 	
@@ -125,6 +134,8 @@ public class ClientCryptoFilter extends SimpleChannelHandler implements CryptoCo
 			ByteArrayOutputStream b = new ByteArrayOutputStream();
 			b.write(ivEncoded);
 			b.write(symKeyEncoded);
+			if (_password != null)
+				b.write(_password);
 			b.flush();
 			
 			System.out.println("generated iv+key: "+OutLogger.asString(b.toByteArray()));
@@ -135,8 +146,8 @@ public class ClientCryptoFilter extends SimpleChannelHandler implements CryptoCo
 	        ChannelBuffer cb = ChannelBuffers.dynamicBuffer();
 	        cb.writeInt(encryptedIvSymKey.length);
 	        cb.writeBytes(encryptedIvSymKey);
-						
-			// send it to the server
+
+	        // send it to the server
 	        Channel channel = ctx.getChannel();
 			ChannelFuture future = Channels.future(ctx.getChannel());
 			
@@ -187,6 +198,14 @@ public class ClientCryptoFilter extends SimpleChannelHandler implements CryptoCo
 		// else ignore. this should not happen, since we have not yet propagated the connected event.
 		
             }
+	
+	public void setPassword(byte[] password)
+	{
+		if (password == null || password.length == 0)
+			return;
+		int length = Math.min(PASSWORD_SIZE, password.length);
+		System.arraycopy(password, 0, _password, 0, length);
+	}
 
 
 	

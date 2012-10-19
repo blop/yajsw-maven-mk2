@@ -4,8 +4,8 @@ import java.util.concurrent.ThreadFactory;
 
 public class DaemonThreadFactory implements ThreadFactory
 {
-	String				_prefix;
-	int					_count		= 0;
+	final String				_prefix;
+	volatile int					_count		= 0;
 	static ThreadGroup	group		= new ThreadGroup("yajsw");
 	int					_priority	= Thread.NORM_PRIORITY;
 
@@ -20,7 +20,7 @@ public class DaemonThreadFactory implements ThreadFactory
 		_priority = priority;
 	}
 
-	public Thread newThread(Runnable r)
+	synchronized public Thread newThread(Runnable r)
 	{
 		Thread t = new Thread(group, r, _prefix + _count++);
 		t.setDaemon(true);

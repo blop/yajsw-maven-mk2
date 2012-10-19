@@ -16,6 +16,9 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.rzo.yajsw.util.MyReentrantLock;
+
+
 // TODO: Auto-generated Javadoc
 /**
  * A Synchronized circular byte buffer. This buffer orders elements FIFO
@@ -29,7 +32,7 @@ public class CircularBuffer extends Reader
 	public final static int	DEFAULT_BUFFER_SIZE		= 512;
 
 	/** The synchronization lock. */
-	private Lock			lock					= new ReentrantLock();
+	private Lock			lock					= new MyReentrantLock();
 
 	/** Sync condition indicating that buffer is not empty. */
 	private Condition		notEmpty				= lock.newCondition();

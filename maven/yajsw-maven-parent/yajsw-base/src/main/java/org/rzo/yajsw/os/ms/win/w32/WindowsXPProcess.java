@@ -51,7 +51,7 @@ import org.rzo.yajsw.os.ms.win.w32.WindowsXPProcess.Shell32.SHELLEXECUTEINFO;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
-import com.sun.jna.Platform;
+import com.sun.jna.PlatformEx;
 import com.sun.jna.Pointer;
 import com.sun.jna.StringBlock;
 import com.sun.jna.Structure;
@@ -403,6 +403,19 @@ public class WindowsXPProcess extends AbstractProcess
 
 			/** The dw thread id. */
 			public int		dwThreadId	= -1;
+			
+			@Override
+			public void finalize()
+			{
+				try
+				{
+					super.finalize();
+				}
+				catch (Throwable e)
+				{
+					e.printStackTrace();
+				}
+			}
 
 		}
 
@@ -474,6 +487,26 @@ public class WindowsXPProcess extends AbstractProcess
 
 			/** The h std error. */
 			public Pointer	hStdError;
+			
+			@Override
+			public void finalize()
+			{
+				try
+				{
+					super.finalize();
+				}
+				catch (Throwable e)
+				{
+					e.printStackTrace();
+				}
+			}
+			
+			@Override
+			public String toString()
+			{
+				return ""+hStdError+"/"+hStdOutput+"/"+hStdInput;
+			}
+
 		}
 
 		int	SW_SHOWMINIMIZED			= 2;
@@ -1521,51 +1554,51 @@ public class WindowsXPProcess extends AbstractProcess
 	}
 
 	/** The _startup info. */
-	STARTUPINFO						_startupInfo;
+	volatile STARTUPINFO						_startupInfo;
 
 	/** The _process information. */
 	volatile PROCESS_INFORMATION	_processInformation;
 
 	/** The in read. */
-	PointerByReference				inRead		= null;
+	volatile PointerByReference				inRead		= null;
 
 	/** The in write. */
-	PointerByReference				inWrite		= null;
+	volatile PointerByReference				inWrite		= null;
 
 	/** The out read. */
-	PointerByReference				outRead		= null;
+	volatile PointerByReference				outRead		= null;
 
 	/** The out write. */
-	PointerByReference				outWrite	= null;
+	volatile PointerByReference				outWrite	= null;
 
 	/** The err read. */
-	PointerByReference				errRead		= null;
+	volatile PointerByReference				errRead		= null;
 
 	/** The err write. */
-	PointerByReference				errWrite	= null;
+	volatile PointerByReference				errWrite	= null;
 
 	/** The sa. */
-	SECURITY_ATTRIBUTES				sa;
+	volatile SECURITY_ATTRIBUTES				sa;
 
 	/** The m_h out pipe. */
-	Pointer							m_hOutPipe	= null;
+	volatile Pointer							m_hOutPipe	= null;
 
 	/** The m_h err pipe. */
-	Pointer							m_hErrPipe	= null;
+	volatile Pointer							m_hErrPipe	= null;
 
 	/** The m_h in pipe. */
-	Pointer							m_hInPipe	= null;
+	volatile Pointer							m_hInPipe	= null;
 
 	/** The in write pipe. */
-	Pointer							inWritePipe	= null;
+	volatile Pointer							inWritePipe	= null;
 
 	/** The out read pipe. */
-	Pointer							outReadPipe	= null;
+	volatile Pointer							outReadPipe	= null;
 
 	/** The err read pipe. */
-	Pointer							errReadPipe	= null;
+	volatile Pointer							errReadPipe	= null;
 	
-	int _isElevated = -1; // 1 = true, 0 = false;
+	volatile int _isElevated = -1; // 1 = true, 0 = false;
 
 	/**
 	 * Gets the process.
@@ -1696,10 +1729,10 @@ public class WindowsXPProcess extends AbstractProcess
 			{
 				if (cmd == null || cmd.length() == 0)
 					continue;
-				if (cmd.startsWith("\""))
-					_cmd += cmd + " ";
+				if (cmd.contains(" ") && !cmd.endsWith("\""))
+						_cmd += '"' + cmd + "\" ";
 				else
-					_cmd += '"' + cmd + "\" ";
+					_cmd += cmd + " ";
 			}
 			// _cmd += cmd + " ";
 		}
@@ -1735,35 +1768,56 @@ public class WindowsXPProcess extends AbstractProcess
 				errRead = new PointerByReference();
 				errWrite = new PointerByReference();
 
-				if (MyKernel32.INSTANCE.CreatePipe(inRead, inWrite, sa, 0) == 0 || MyKernel32.INSTANCE.CreatePipe(outRead, outWrite, sa, 0) == 0
-						|| MyKernel32.INSTANCE.CreatePipe(errRead, errWrite, sa, 0) == 0)
-				{
-					log("Error in CreatePipe " + Integer.toHexString(MyKernel32.INSTANCE.GetLastError()));
-					return false;
-				}
 
 				_startupInfo.dwFlags = MyKernel32.STARTF_USESTDHANDLES;
+				
+				if (MyKernel32.INSTANCE.CreatePipe(inRead, inWrite, sa, 0) == 0)
+				{
+					log("Error in CreatePipe inWrite " + Integer.toHexString(MyKernel32.INSTANCE.GetLastError()));
+					return false;					
+				}
+				if (!MyKernel32.INSTANCE.SetHandleInformation(inWrite.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0))
+				{
+					log("error in set handle inWrite -> abort start");
+					return false;					
+				}
 				_startupInfo.hStdInput = inRead.getValue();
-				_startupInfo.hStdOutput = outWrite.getValue();
-				_startupInfo.hStdError = errWrite.getValue();
 
-				if (!MyKernel32.INSTANCE.SetHandleInformation(inWrite.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0)
-						|| !MyKernel32.INSTANCE.SetHandleInformation(outRead.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0)
-						|| !MyKernel32.INSTANCE.SetHandleInformation(errRead.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0)
+				if (MyKernel32.INSTANCE.CreatePipe(outRead, outWrite, sa, 0) == 0)
+				{
+					log("Error in CreatePipe outWrite " + Integer.toHexString(MyKernel32.INSTANCE.GetLastError()));
+					return false;					
+				}
+				if (!MyKernel32.INSTANCE.SetHandleInformation(outRead.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0))
+				{
+					log("error in set handle outRead -> abort start");
+					return false;					
+				}
+				_startupInfo.hStdOutput = outWrite.getValue();
+
+				if (MyKernel32.INSTANCE.CreatePipe(errRead, errWrite, sa, 0) == 0)
+				{
+					log("Error in CreatePipe errWrite " + Integer.toHexString(MyKernel32.INSTANCE.GetLastError()));
+					return false;					
+				}
+				if (!MyKernel32.INSTANCE.SetHandleInformation(errRead.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0))
+				{
+					log("error in set handle inWrite -> abort start");
+					return false;					
+				}
+				_startupInfo.hStdError = errWrite.getValue();
+				
 						// for some unknown reason: if we add the following
 						// lines we do not get "operation on non socket" error
 						// in mina
-						|| !MyKernel32.INSTANCE.SetHandleInformation(inWrite.getValue(), MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE,
+						/*|| !MyKernel32.INSTANCE.SetHandleInformation(inWrite.getValue(), MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE,
 								MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE)
 						|| !MyKernel32.INSTANCE.SetHandleInformation(outRead.getValue(), MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE,
 								MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE)
 						|| !MyKernel32.INSTANCE.SetHandleInformation(errRead.getValue(), MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE,
-								MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE))
-
-				{
-					log("error in set handle -> abort start");
-					return false;
-				}
+								MyKernel32.HANDLE_FLAG_PROTECT_FROM_CLOSE)
+								*/
+								
 				if (this._redirectErrorStream)
 					MyKernel32.INSTANCE.SetHandleInformation(errRead.getValue(), MyKernel32.HANDLE_FLAG_INHERIT, 0);
 
@@ -1881,9 +1935,9 @@ public class WindowsXPProcess extends AbstractProcess
 			else
 			{
 				WString user = null;
-				;
+				
 				WString domain = null;
-				;
+				
 				int i = _user.lastIndexOf("\\");
 				if (i > 0)
 				{
@@ -2041,6 +2095,7 @@ public class WindowsXPProcess extends AbstractProcess
 				int err = MyKernel32.INSTANCE.GetLastError();
 				log("could not start process " + Integer.toHexString(err));
 				log(Kernel32Util.formatMessageFromLastErrorCode(err));
+				log(_startupInfo.toString());
 				return result;
 			}
 			_started = true;
@@ -2095,6 +2150,9 @@ public class WindowsXPProcess extends AbstractProcess
 				_outputStream = new CyclicBufferFilePrintStream(new File(_tmpPath, "in_" + _teeName));
 				_inputStream = new CyclicBufferFileInputStream(new File(_tmpPath, "out_" + _teeName));
 				_errorStream = new CyclicBufferFileInputStream(new File(_tmpPath, "err_" + _teeName));
+				new File(_tmpPath, "in_" + _teeName).deleteOnExit();
+				new File(_tmpPath, "out_" + _teeName).deleteOnExit();
+				new File(_tmpPath, "err_" + _teeName).deleteOnExit();
 			}
 
 			_pid = _processInformation.dwProcessId;
@@ -2209,18 +2267,28 @@ public class WindowsXPProcess extends AbstractProcess
 	 */
 	public void waitFor(long timeout)
 	{
+		if (_debug)
+			log("waitFor "+timeout);
 		try
 		{
 		if (!isRunning())
 			return;
+		if (_debug)
+			log("1waitFor ");
 		if (timeout > Integer.MAX_VALUE)
 			timeout = Integer.MAX_VALUE;
 		if (_processInformation == null)
 			return;
 		long start = System.currentTimeMillis();
-		while (_processInformation != null && (timeout == -1 || start+timeout < System.currentTimeMillis()) && isRunning())
+		if (_debug)
+			log("2waitFor ");
+		while (_processInformation != null && (timeout == -1 || (start+timeout) > System.currentTimeMillis()) && isRunning())
 		{
+			if (_debug)
+				log("WaitForSingleObject +");
 		int result = MyKernel32.INSTANCE.WaitForSingleObject(_processInformation.hProcess, (int) timeout);
+		if (_debug)
+			log("WaitForSingleObject -");
 		if (_debug)
 			log("WaitForSingleObject terminated PID: " + getPid());
 		if (result == MyKernel32.WAIT_FAILED)
@@ -2629,7 +2697,7 @@ public class WindowsXPProcess extends AbstractProcess
 		{
 			// log("getExitCode "+_exitCode + " "+_processInformation);
 		}
-		if (_debug)
+		if (isDebug())
 			log("getExitCode " + _exitCode + " processINFO==null=" + (_processInformation == null));
 		// System.out.println("get exit code "+_exitCode);
 		return _exitCode;
@@ -2644,21 +2712,21 @@ public class WindowsXPProcess extends AbstractProcess
 	{
 		if (_pid <= 0)
 		{
-			if (_debug)
+			if (isDebug())
 				log("is running: false pid=(" + _pid + "<=0)");
 			// log("is running: false "+_pid);
 			return false;
 		}
 		if (_processInformation == null)
 		{
-			if (_debug)
+			if (isDebug())
 				log("is running: _processInformation == null pid=" + _pid);
 			return false;
 		}
 		// return _processInformation != null && getExitCode() < 0 && _pid > 0;
 		boolean result = getExitCode() == -2 && _pid >= 0;
 		// log("is running: "+result +" "+_pid + " "+ _exitCode);
-		if (_debug)
+		if (isDebug())
 			log("is running: " + result + " " + _pid + " " + _exitCode);
 		return result;
 		/*
@@ -2727,22 +2795,22 @@ public class WindowsXPProcess extends AbstractProcess
 
 			if (outRead != null && outRead.getValue() != Pointer.NULL)
 			{
-				MyKernel32.INSTANCE.SetHandleInformation(outRead.getValue(), 2, 0);
-				MyKernel32.INSTANCE.CloseHandle(outRead.getValue());
+				//MyKernel32.INSTANCE.SetHandleInformation(outRead.getValue(), 2, 0);
+				//MyKernel32.INSTANCE.CloseHandle(outRead.getValue());
 				outRead = null;
 			}
 
 			if (errRead != null && errRead.getValue() != Pointer.NULL)
 			{
-				MyKernel32.INSTANCE.SetHandleInformation(errRead.getValue(), 2, 0);
-				MyKernel32.INSTANCE.CloseHandle(errRead.getValue());
+				//MyKernel32.INSTANCE.SetHandleInformation(errRead.getValue(), 2, 0);
+				//MyKernel32.INSTANCE.CloseHandle(errRead.getValue());
 				errRead = null;
 			}
 
 			if (inWrite != null && inWrite.getValue() != Pointer.NULL)
 			{
-				MyKernel32.INSTANCE.SetHandleInformation(inWrite.getValue(), 2, 0);
-				MyKernel32.INSTANCE.CloseHandle(inWrite.getValue());
+				//MyKernel32.INSTANCE.SetHandleInformation(inWrite.getValue(), 2, 0);
+				//MyKernel32.INSTANCE.CloseHandle(inWrite.getValue());
 				inWrite = null;
 			}
 
@@ -2786,9 +2854,22 @@ public class WindowsXPProcess extends AbstractProcess
 		}
 		if (_debug)
 			log("process handles destroyed " + _pid);
+		//if (_processInformation != null)
+		//_processInformation.finalize();
 		_processInformation = null;
 
+		//if (_startupInfo != null)
+		//_startupInfo.finalize();
 		_startupInfo = null;
+		try
+		{
+			Thread.sleep(100);
+		}
+		catch (InterruptedException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		/*
 		 * if (_pipeStreams) { if (inRead != null) if (inRead.getValue() !=
 		 * null) MyKernel32.INSTANCE.CloseHandle(inRead.getValue()); if
@@ -3083,10 +3164,18 @@ public class WindowsXPProcess extends AbstractProcess
 				p.setVisible(false);
 				p.start();
 				p.waitFor(30000);
+				if (p.isRunning())
+					p.kill(99);
+				int ec = p.getExitCode();
+				if (ec != 0)
+					log("unexptected exit code in getCommandLineInternalWMI: "+ec);
 				BufferedReader br = new BufferedReader(new FileReader("wmic.tmp"));
+				String l = "?";
+				try 
+				{
 				br.readLine();
 				br.readLine();
-				String l = br.readLine();
+				l = br.readLine();
 				if (l.codePointAt(0) == 0)
 				{
 					StringBuffer s = new StringBuffer();
@@ -3095,8 +3184,13 @@ public class WindowsXPProcess extends AbstractProcess
 							s.append(l.charAt(i));
 					l = s.toString();
 				}
-				br.close();
 				result = l;
+				}
+				catch (Exception ex)
+				{
+					ex.printStackTrace();
+				}
+				br.close();
 				p.destroy();
 			}
 			catch (Exception e)
@@ -3574,7 +3668,7 @@ public class WindowsXPProcess extends AbstractProcess
 		return (_started && !isRunning());
 	}
 
-	public static boolean setWorkingDirectory(String name)
+	public boolean changeWorkingDir(String name)
 	{
 		File f = new File(name);
 		String dir;
@@ -3733,7 +3827,7 @@ public class WindowsXPProcess extends AbstractProcess
 	{
 		WindowsXPProcess me = (WindowsXPProcess) getProcess(currentProcessId());
 		System.out.println("elevating command line " + me.getCommand());
-		if (Platform.isWinVista() && !me.isElevated())
+		if (PlatformEx.isWinVista() && !me.isElevated())
 		{
 			WindowsXPProcess elevatedMe = new WindowsXPProcess();
 			elevatedMe.setCommand(me.getCommand());

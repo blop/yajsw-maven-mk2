@@ -64,7 +64,8 @@ public class WrapperMainServiceWin extends Win32Service implements StopableServi
 		String wrapperJar = WrapperLoader.getWrapperJar();
 		// set home dir of the service to the wrapper jar parent, so that we may find required libs
 		String homeDir = new File(wrapperJar).getParent();
-		OperatingSystem.instance().setWorkingDir(homeDir);
+		if (!OperatingSystem.instance().setWorkingDir(homeDir))
+			System.out.println("could not set working dir. pls check configuration or user rights :"+homeDir);
 		YajswConfigurationImpl _config = new YajswConfigurationImpl(false);
 		service = new WrapperMainServiceWin();
 		// set service shutdown timeout
@@ -83,7 +84,7 @@ public class WrapperMainServiceWin extends Win32Service implements StopableServi
 		
 		if (_config.containsKey("wrapperx.config"))
 		{
-			List<String> configs = _config.getList("wrapperx.config");
+			List<Object> configs = _config.getList("wrapperx.config");
 			wList = WrappedProcessFactory.createProcessList(new HashMap(), configs, true);
 			for (WrappedProcess p : wList)
 			{
@@ -148,12 +149,6 @@ public class WrapperMainServiceWin extends Win32Service implements StopableServi
 		// init the service for signaling with services.exe. app will hang
 		// here until service is stopped
 		service.init();
-		try {
-			Thread.sleep(5000);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 		// service has terminated -> halt the wrapper jvm
 		w.getWrapperLogger().info("Win service: terminated correctly");
 		Runtime.getRuntime().halt(0);

@@ -1,5 +1,6 @@
 package org.rzo.netty.ahessian.rpc.server;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import org.rzo.netty.ahessian.rpc.callback.ClientCallback;
 import org.rzo.netty.ahessian.rpc.callback.ServerCallbackProxy;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCCallMessage;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCReplyMessage;
+import org.rzo.netty.ahessian.rpc.stream.ServerInputStreamManager;
 
 /**
  * Wraps an object as a {@link Service}. Methods are invoked as soon as they are received.
@@ -98,11 +100,14 @@ public class ImmediateInvokeService extends HessianSkeleton implements Constants
 			Constants.ahessianLogger.warn("", ex);
 			fault = ex;
 		}
-		HessianRPCReplyMessage reply = new HessianRPCReplyMessage(result, fault, message);
-		reply.setCompleted(true);
-		reply.setCallId((Long) message.getHeaders().get(CALL_ID_HEADER_KEY));
-		reply.setGroup((Integer) message.getHeaders().get(GROUP_HEADER_KEY));
-		writeResult(reply);
+		if (fault == null && result instanceof InputStream)
+		{
+			handleInputStreamResult(fault, result, message);
+		}
+		else
+		{
+			handleDefaultResult(fault, result, message);
+		}
 	}
 	
 

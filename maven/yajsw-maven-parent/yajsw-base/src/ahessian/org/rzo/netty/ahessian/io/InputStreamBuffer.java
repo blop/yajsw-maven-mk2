@@ -10,6 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.rzo.netty.ahessian.Constants;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 
 /**
  * InputStreamBuffer pipes bytes read from the channel to an input stream
@@ -23,12 +24,14 @@ public class InputStreamBuffer extends InputStream
 
 	/** Indicates if the stream has been closed */
 	private volatile boolean		_closed			= false;
-	final private Lock				_lock			= new ReentrantLock();
+	final private Lock				_lock			= new MyReentrantLock();
 	/** Sync condition indicating that buffer is not empty. */
 	final private Condition			_notEmpty		= _lock.newCondition();
 	private volatile int			_available		= 0;
 	boolean							blocking		= false;
 	long							_readTimeout	= 3000;
+	// close stream on empty buffer
+	boolean _closeOnEmpty = false;
 
 	/*
 	 * (non-Javadoc)
@@ -41,6 +44,7 @@ public class InputStreamBuffer extends InputStream
 		int result = -1;
 		if (_closed)
 			return -1;
+		checkCloseOnEmpty();
 		_lock.lock();
 		try
 		{
@@ -76,7 +80,7 @@ public class InputStreamBuffer extends InputStream
 		}
 		
 		//System.out.println("read "+_available);
-				 
+		checkCloseOnEmpty();				 
 		return result;
 	}
 
@@ -176,6 +180,7 @@ public class InputStreamBuffer extends InputStream
 		{
 			while (!_closed && available() == 0)
 			{
+				checkCloseOnEmpty();
 				if (_readTimeout > 0)
 				{
 					if (!_notEmpty.await(_readTimeout, TimeUnit.MILLISECONDS))
@@ -203,6 +208,7 @@ public class InputStreamBuffer extends InputStream
 		{
 			_lock.unlock();
 		}
+		checkCloseOnEmpty();
 		return result;
 	}
 
@@ -229,6 +235,18 @@ public class InputStreamBuffer extends InputStream
 	public void setBlocking(boolean blocking)
 	{
 		this.blocking = blocking;
+	}
+	
+	private void checkCloseOnEmpty() throws IOException
+	{
+		if (_closeOnEmpty && !_closed && available() == 0)
+			close();
+	}
+	
+	public void closeOnEmpty() throws IOException
+	{
+		_closeOnEmpty = true;
+		checkCloseOnEmpty();
 	}
 
 }

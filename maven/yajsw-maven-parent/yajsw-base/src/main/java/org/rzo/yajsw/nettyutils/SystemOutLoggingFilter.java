@@ -2,7 +2,6 @@ package org.rzo.yajsw.nettyutils;
 
 import org.jboss.netty.channel.ChannelEvent;
 import org.jboss.netty.channel.ChannelPipelineCoverage;
-import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.handler.logging.LoggingHandler;
 
 @ChannelPipelineCoverage("one")
@@ -18,11 +17,6 @@ public class SystemOutLoggingFilter extends LoggingHandler
 	@Override
 	public void log(ChannelEvent e)
 	{
-		if (e instanceof MessageEvent)
-		{
-			MessageEvent msg = (MessageEvent) e;
-			log(msg.toString());
-		}
 		if (e != null)
 			log(e.toString());
 		else

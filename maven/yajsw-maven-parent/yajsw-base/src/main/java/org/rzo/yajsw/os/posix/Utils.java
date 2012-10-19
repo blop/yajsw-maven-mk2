@@ -24,19 +24,23 @@ public class Utils
 
 	public String readFile(String file)
 	{
-		String result = null;
+		String result = "";
 		File f = new File(file);
 		if (f.exists())
 			try
 			{
 				InputStream in = new FileInputStream(f);
 				byte[] buffer = new byte[10 * 1024];
-				int size = in.read(buffer);
+				int size = 0;
+				
+				while ((size = in.read(buffer)) > 0)
+				{
 				// System.out.println("size "+size);
 				for (int i = 0; i < size; i++)
 					if (buffer[i] == 0)
 						buffer[i] = (byte) ' ';
-				result = new String(buffer);
+				result += new String(buffer, 0, size);
+				}
 				in.close();
 			}
 			catch (Exception e)

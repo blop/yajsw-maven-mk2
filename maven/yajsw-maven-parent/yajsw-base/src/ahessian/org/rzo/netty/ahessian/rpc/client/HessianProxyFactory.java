@@ -33,9 +33,12 @@ import org.rzo.netty.ahessian.rpc.io.Hessian2Input;
 import org.rzo.netty.ahessian.rpc.io.Hessian2Output;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCCallMessage;
 import org.rzo.netty.ahessian.rpc.message.HessianRPCReplyMessage;
+import org.rzo.netty.ahessian.rpc.stream.ClientStreamManager;
+import org.rzo.netty.ahessian.rpc.stream.InputStreamReplyMessage;
 import org.rzo.netty.ahessian.session.ClientSessionFilter;
 import org.rzo.netty.ahessian.utils.MyBlockingQueue;
 import org.rzo.netty.ahessian.utils.MyLinkedBlockingQueue;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 import org.rzo.netty.ahessian.utils.TimedBlockingPriorityQueue;
 
 import com.caucho.hessian4.io.AbstractHessianInput;
@@ -99,7 +102,7 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 
 	/** The _executor. */
 	Executor														_executor;
-	private Lock													_lock					= new ReentrantLock();
+	private Lock													_lock					= new MyReentrantLock();
 	private Condition												_connected				= _lock.newCondition();
 
 	/** The _stop. */
@@ -118,6 +121,7 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 
 	private volatile boolean										_blocked				= false;
 
+	ClientStreamManager _clientStreamManager;
 	/**
 	 * Instantiates a new hessian proxy factory.
 	 * 
@@ -287,8 +291,14 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 		while (getChannel() == null)
 		{
 			_lock.lock();
+			try
+			{
 			_connected.await(1000, TimeUnit.MILLISECONDS);
+			}
+			finally
+			{
 			_lock.unlock();
+			}
 		}
 		getChannel().write(message);
 	
@@ -333,6 +343,12 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 						{
 							public void run()
 							{
+								if (message.getValue() instanceof InputStreamReplyMessage)
+								{
+									InputStream stream = _clientStreamManager.newInputStream(((InputStreamReplyMessage)message.getValue()).getId());
+									// caller should get a stream, not the reply
+									message.setValue(stream);
+								}
 								future.set(message);
 								// check in case this was a callback
 								if (future.isDone())
@@ -350,6 +366,10 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 					ahessianLogger.warn("message missing id " + message);
 
 			}
+		}
+		else if (e.getMessage() instanceof InputStreamReplyMessage)
+		{
+			_clientStreamManager.messageReceived((InputStreamReplyMessage)e.getMessage());
 		}
 		ctx.sendUpstream(e);
 	}
@@ -422,6 +442,8 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 				Constants.ahessianLogger.warn("", ex);
 			}
 		_lock.lock();
+		try
+		{
 		if (!_sessionListenerAdded)
 		{
 			if (ctx.getPipeline().getContext(ClientSessionFilter.class) != null)
@@ -432,11 +454,17 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 					public void run()
 					{
 						_lock.lock();
+						try
+						{
 						invalidateProxies();
 						_openCalls.clear();
 
 						_pendingCalls.clear();
+						}
+						finally
+						{
 						_lock.unlock();
+						}
 						if (_closedSessionListener != null)
 							try
 							{
@@ -469,7 +497,11 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 		_channel = ctx.getChannel();
 		super.channelConnected(ctx, e);
 		_connected.signal();
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 	}
 
 	/*
@@ -485,8 +517,14 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 		_channel = null;
 		// _stop = true;
 		_lock.lock();
+		try
+		{
 		_connected.signal();
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 		// put something in the queue in case the worker thread hangs in
 		// _pendingCalls.take()
 		_pendingCalls.offer(new HessianRPCCallMessage(null, null, null, null));
@@ -526,8 +564,14 @@ public class HessianProxyFactory extends SimpleChannelHandler implements Constan
 			_channel = null;
 			// _stop = true;
 			_lock.lock();
+			try
+			{
 			_connected.signal();
+			}
+			finally
+			{
 			_lock.unlock();
+			}
 			// put something in the queue in case the worker thread hangs in
 			// _pendingCalls.take()
 			_pendingCalls.offer(new HessianRPCCallMessage(null, null, null, null));

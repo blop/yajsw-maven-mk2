@@ -20,6 +20,7 @@ import org.rzo.netty.ahessian.application.jmx.remote.service.AsyncMBeanServerCon
 import org.rzo.netty.ahessian.application.jmx.remote.service.MBeanServerConnectionAsyncAdapter;
 import org.rzo.netty.ahessian.rpc.client.BootstrapProvider;
 import org.rzo.netty.ahessian.rpc.client.HessianProxyFactory;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 import org.rzo.netty.mcast.discovery.DiscoveryClient;
 import org.rzo.netty.mcast.discovery.DiscoveryListener;
 
@@ -30,7 +31,7 @@ public class AHessianJmxClient implements BootstrapProvider
 	ExecutorService			executor	= Executors.newCachedThreadPool();
 	ClientBootstrap			bootstrap	= new ClientBootstrap(new NioClientSocketChannelFactory(executor, executor));
 	MBeanServerConnection	mbeanServer;
-	final Lock				lock		= new ReentrantLock();
+	final Lock				lock		= new MyReentrantLock();
 	final Condition			connected	= lock.newCondition();
 	String					currentHost	= null;
 	HessianProxyFactory		factory;

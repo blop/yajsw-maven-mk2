@@ -26,6 +26,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.rzo.yajsw.util.DaemonThreadFactory;
+import org.rzo.yajsw.util.MyReentrantLock;
 
 // TODO: Auto-generated Javadoc
 /**
@@ -69,7 +70,7 @@ public class CyclicBufferFileInputStream extends BufferedInputStream
 
 			boolean				closed	= false;
 			boolean				opened	= false;
-			Lock				lock	= new ReentrantLock();
+			Lock				lock	= new MyReentrantLock();
 			RandomAccessFile	raf;
 			ByteBuffer			buf;
 			ByteBuffer			posBuf;

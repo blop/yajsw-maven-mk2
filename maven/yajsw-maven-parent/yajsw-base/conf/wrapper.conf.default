@@ -33,6 +33,15 @@ wrapper.working.dir=
 # wrapper.java.mainclass=
 
 #********************************************************************
+# tmp folder
+# yajsw creates temporary files named in_.. out_.. err_.. jna..
+# per default these are placed in jna.tmpdir.
+# jna.tmpdir is set in setenv batch file to <yajsw>/tmp
+#********************************************************************
+wrapper.tmp.path = ${jna_tmpdir}
+
+
+#********************************************************************
 # Application main class or native executable
 # One of the following properties MUST be defined
 #********************************************************************
@@ -119,7 +128,7 @@ wrapper.java.app.mainclass=
 wrapper.console.loglevel=INFO
 
 # Log file to use for wrapper output logging.
-#wrapper.logfile=${wrapper.working.dir}/logs/wrapper.log
+wrapper.logfile=${wrapper_home}/log/wrapper.log
 
 # Format of output for the log file.  (See docs for formats)
 #wrapper.logfile.format=LPTM
@@ -129,13 +138,21 @@ wrapper.console.loglevel=INFO
 
 # Maximum size that the log file will be allowed to grow to before
 #  the log is rolled. Size is specified in bytes.  The default value
-#  of 0, disables log rolling.  May abbreviate with the 'k' (kb) or
-#  'm' (mb) suffix.  For example: 10m = 10 megabytes.
-#wrapper.logfile.maxsize=10m
+#  of 0, disables log rolling by size.  May abbreviate with the 'k' (kB) or
+#  'm' (mB) suffix.  For example: 10m = 10 megabytes.
+# If wrapper.logfile does not contain the string ROLLNUM it will be automatically added as suffix of the file name
+wrapper.logfile.maxsize=10m
 
 # Maximum number of rolled log files which will be allowed before old
 #  files are deleted.  The default value of 0 implies no limit.
-#wrapper.logfile.maxfiles=10
+wrapper.logfile.maxfiles=10
+
+# Controls the roll mode of the log file
+# possible values: DATE, WRAPPER, JVM
+# If DATE is set wrapper.logfile should contain the string YYYYMMDD
+# If DATE is set and wrapper.logfile.maxsize is set the log file will be rolled by size and date
+# If DATE is set and wrapper.logfile.maxfiles older files rolled by size or date are deleted
+#wrapper.logfile.rollmode=DATE
 
 #********************************************************************
 # Application Console Properties
@@ -170,7 +187,7 @@ wrapper.ntservice.description=yajsw
 # wrapper service user. only for windows. on *nix system this is root.
 # see also wrapper.app.account
 #wrapper.ntservice.account=
-#wrapper.ntservice.user=
+#wrapper.ntservice.password=
 
 #********************************************************************
 # Wrapper Posix Daemon Properties

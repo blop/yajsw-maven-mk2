@@ -26,7 +26,6 @@ public class WrapperExeBooter
 	 */
 	public static void main(String[] args)
 	{
-		System.setProperty("jna.nosys","true");
 		if (System.getProperty("java.io.tmpdir") != null)
 		{
 			File tmp =  new File(System.getProperty("java.io.tmpdir"));

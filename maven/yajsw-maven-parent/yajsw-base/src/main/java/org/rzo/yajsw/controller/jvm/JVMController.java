@@ -17,8 +17,8 @@ import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.jboss.netty.bootstrap.ServerBootstrap;
@@ -65,6 +65,8 @@ public class JVMController extends AbstractController
 
 	public static final int							STATE_PROCESS_KILLED	= 8;
 
+	public static final int							STATE_THRESHOLD			= 9;
+
 	/** The _port. */
 	int												_port					= DEFAULT_PORT;
 
@@ -87,7 +89,7 @@ public class JVMController extends AbstractController
 
 	/** The _session. */
 	// IoSession _session;
-	Channel											_channel;
+	volatile Channel											_channel;
 
 	/** The Constant pool. */
 	// static final SimpleIoProcessorPool pool = new
@@ -100,7 +102,7 @@ public class JVMController extends AbstractController
 	 */
 	// NioSocketAcceptor _acceptor = null;
 	ServerBootstrap									_acceptor				= null;
-	Channel											_parentChannel;
+	volatile Channel											_parentChannel;
 
 	/** The _init. */
 	boolean											_init					= false;
@@ -109,7 +111,7 @@ public class JVMController extends AbstractController
 	static final Set								_usedPorts				= Collections.synchronizedSet(new TreeSet());
 
 	/** The Constant _scheduler. */
-	static private final ScheduledExecutorService	_scheduler				= Executors.newScheduledThreadPool(1, new DaemonThreadFactory(
+	static private final ScheduledThreadPoolExecutor	_scheduler				= (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, new DaemonThreadFactory(
 																					"controller.scheduler"));
 
 	/** The _timeout handle. */
@@ -120,6 +122,12 @@ public class JVMController extends AbstractController
 																					"controller-worker"));
 
 	Runnable										_serviceStartupListener;
+
+	float											_heap					= -1;
+	long											_minGC					= -1;
+	long											_fullGC					= -1;
+	long											_heapInBytes			= -1;
+
 
 	/**
 	 * Instantiates a new controller.
@@ -137,6 +145,7 @@ public class JVMController extends AbstractController
 		if (_pingCheck == null)
 			_pingCheck = new Cycler(_pingTimeout, _pingTimeout, _pingExecutor, new Runnable()
 			{
+				int r = 2;
 				public void run()
 				{
 					if (!_pingOK)
@@ -263,6 +272,7 @@ public class JVMController extends AbstractController
 			return;
 		final Runnable timeOutAction = new Runnable()
 		{
+			int r = 1;
 			public void run()
 			{
 				if (isDebug())
@@ -309,19 +319,22 @@ public class JVMController extends AbstractController
 	{
 		stopPingCheck();
 		if (_timeoutHandle != null)
-			_timeoutHandle.cancel(false);
+			_timeoutHandle.cancel(true);
+		_scheduler.purge();
+		setState(state);
 		if (_parentChannel != null)
 		{
 			int i = 0;
 			while (_channel != null && _channel.isConnected() && i < 3)
 			{
 				i++;
-				getLog().info("controller sending a stop command");
+				if (_debug)
+					getLog().info("controller sending a stop command");
 				if (_channel != null)
 				{
 					String txt = null;
 					if (reason != null && reason.length() > 0)
-						txt = ":"+reason;
+						txt = ":" + reason;
 					_channel.write(new Message(Constants.WRAPPER_MSG_STOP, txt));
 				}
 				try
@@ -356,7 +369,6 @@ public class JVMController extends AbstractController
 			 * _usedPorts.remove(_port);
 			 */
 		}
-		setState(state);
 	}
 
 	/**
@@ -572,6 +584,9 @@ public class JVMController extends AbstractController
 	public void reset()
 	{
 		stop(JVMController.STATE_UNKNOWN, "RESTART");
+		_heap = -1;
+		_minGC = -1;
+		_fullGC = -1;
 	}
 
 	/*
@@ -594,6 +609,11 @@ public class JVMController extends AbstractController
 
 	private volatile boolean	_waitingForProcessTermination	= false;
 
+	private float				_maxHeapRestart					= -1;
+
+	private long				_maxFullGCTimeRestart			= -1;
+
+
 	public void processStarted()
 	{
 		while (_waitingForProcessTermination)
@@ -610,16 +630,19 @@ public class JVMController extends AbstractController
 		_waitingForProcessTermination = true;
 		executor.execute(new Runnable()
 		{
+			int r = 3;
 			public void run()
 			{
 				org.rzo.yajsw.os.Process osProcess;
 				try
 				{
 					osProcess = ((WrappedJavaProcess) _wrappedProcess)._osProcess;
-					getLog().info("waiting for termination of process");
+					if (_debug)
+						getLog().info("waiting for termination of process");
 					if (osProcess != null)
 						osProcess.waitFor();
-					getLog().info("process terminated");
+					if (_debug)
+						getLog().info("process terminated");
 				}
 				finally
 				{
@@ -663,6 +686,8 @@ public class JVMController extends AbstractController
 			return "PING_TIMEOUT";
 		case STATE_PROCESS_KILLED:
 			return "PROCESS_KILLED";
+		case STATE_THRESHOLD:
+			return "THRESHOLD";
 
 		default:
 			return "?";
@@ -689,6 +714,66 @@ public class JVMController extends AbstractController
 	public void setServiceStartupListener(Runnable serviceStartupListener)
 	{
 		_serviceStartupListener = serviceStartupListener;
+	}
+
+	private void restartProcess()
+	{
+		executor.execute(new Runnable()
+		{
+			int r = 4;
+			public void run()
+			{
+				stop(STATE_THRESHOLD, "THRESHOLD");
+			}
+		});
+	}
+
+	public void setHeap(float heap, long minGC, long fullGC, long heapInBytes)
+	{
+		_heap = heap;
+		_minGC = minGC;
+		_fullGC = fullGC;
+		_heapInBytes = heapInBytes;
+		if (_heap > -1 && _heap > _maxHeapRestart && _maxHeapRestart > 0)
+		{
+			getLog().warning("restarting due to heap threshold : " + _heap + " > " + _maxHeapRestart);
+			restartProcess();
+		}
+		else if (_fullGC > -1 && _fullGC > _maxFullGCTimeRestart && _maxFullGCTimeRestart > 0)
+		{
+			getLog().warning("restarting due to gc duration threshold : " + _fullGC + " > " + _maxFullGCTimeRestart);
+			restartProcess();
+		}
+	}
+
+	public float getHeap()
+	{
+		return _heap;
+	}
+
+	public long getMinGC()
+	{
+		return _minGC;
+	}
+
+	public long getFullGC()
+	{
+		return _fullGC;
+	}
+	
+	public long getHeapInBytes() 
+	{
+		return _heapInBytes;
+	}
+
+	public void setMaxHeapRestart(float maxHeapRestart)
+	{
+		_maxHeapRestart = maxHeapRestart;
+	}
+
+	public void setMaxFullGCTimeRestart(long maxFullGCTimeRestart)
+	{
+		_maxFullGCTimeRestart = maxFullGCTimeRestart;
 	}
 
 }

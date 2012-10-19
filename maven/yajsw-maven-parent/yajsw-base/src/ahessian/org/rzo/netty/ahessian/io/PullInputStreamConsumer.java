@@ -14,12 +14,13 @@ import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.rzo.netty.ahessian.Constants;
 import org.rzo.netty.ahessian.stopable.StopableHandler;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 
 public class PullInputStreamConsumer extends SimpleChannelUpstreamHandler implements StopableHandler
 {
 	final InputStreamConsumer _consumer;
 	final Executor _executor;
-	final Lock _lock = new ReentrantLock();
+	final Lock _lock = new MyReentrantLock();
 	final Condition _hasData = _lock.newCondition();
 	volatile boolean _stop = false;
 	volatile ChannelHandlerContext _ctx;
@@ -98,8 +99,14 @@ public class PullInputStreamConsumer extends SimpleChannelUpstreamHandler implem
 			if (_waiting)
 			{
 		_lock.lock();
+		try
+		{
 		_hasData.signal();
+		}
+		finally
+		{
 		_lock.unlock();
+		}
 		}
 	}
 	
@@ -107,9 +114,15 @@ public class PullInputStreamConsumer extends SimpleChannelUpstreamHandler implem
             ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception 
             {
     	_lock.lock();
+    	try
+    	{
     	_consumer.setContext(ctx);
     	_ctx = ctx;
+    	}
+    	finally
+    	{
     	_lock.unlock();
+    	}
         ctx.sendUpstream(e);
     }
     

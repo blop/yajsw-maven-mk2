@@ -1,5 +1,6 @@
 package org.rzo.yajsw.app;
 
+import java.lang.reflect.Field;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
@@ -9,6 +10,16 @@ public abstract class AbstractWrapperJVMMain
 	/** The WRAPPE r_ manager. */
 	public static WrapperManager	WRAPPER_MANAGER;
 	public static Throwable exception = null;
+	// call java logger, so that it inits before groovy & co 
+	//private static Logger dummy = Logger.getAnonymousLogger();
+	
+	static class YajswUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+		public void uncaughtException(Thread t, Throwable e) {
+		System.err.println ("Uncaught exception by " + t + ":");
+		System.err.println(e.getClass().getName()+":"+e.getMessage());
+		e.printStackTrace();
+		}
+		}
 
 	protected static void postExecute()
 	{
@@ -28,9 +39,13 @@ public abstract class AbstractWrapperJVMMain
 		{
 			public Object run()
 			{
-				return WrapperManagerProxy.getWrapperManager(finalArgs);
+				// set our own handler so that we may log out of memory errors
+				Thread.setDefaultUncaughtExceptionHandler(new YajswUncaughtExceptionHandler ());
+				WrapperManager result = WrapperManagerProxy.getWrapperManager(finalArgs);
+				return result;
 			}
 		});
 	}
+
 
 }

@@ -16,8 +16,6 @@ import org.rzo.yajsw.os.AbstractService;
 import org.rzo.yajsw.os.Service;
 import org.rzo.yajsw.os.ServiceInfo;
 
-import sun.security.action.GetLongAction;
-
 public class WindowsXPService extends AbstractService
 {
 
@@ -137,15 +135,15 @@ public class WindowsXPService extends AbstractService
 	public static Object getServiceFailureActions(Configuration config)
 	{
 		String cmd = config.getString("wrapper.ntservice.failure_actions.command", null);
-		List<String> actions = config.getList("wrapper.ntservice.failure_actions.actions", null);
-		List<String> actionsDelay = config.getList("wrapper.ntservice.failure_actions.actions_delay", new ArrayList());
+		List<Object> actions = config.getList("wrapper.ntservice.failure_actions.actions", null);
+		List<Object> actionsDelay = config.getList("wrapper.ntservice.failure_actions.actions_delay", new ArrayList());
 		if (actions == null)
 			return null;
 		
 		SC_ACTION[] scActions = (SC_ACTION[]) new SC_ACTION().toArray(actions.size());
 			int i = 0;
 			int lastDelay = 0;
-			for (String action : actions)
+			for (Object action : actions)
 			{
 				//scActions[i] = new SC_ACTION();
 				if ("NONE".equals(action))
@@ -173,8 +171,8 @@ public class WindowsXPService extends AbstractService
 				if (actionsDelay.size() > i)
 				try
 				{
-					String d = actionsDelay.get(i);
-					lastDelay = Integer.parseInt(d);
+					Object d = actionsDelay.get(i);
+					lastDelay = Integer.parseInt((String) d);
 				}
 				catch (Exception ex)
 				{

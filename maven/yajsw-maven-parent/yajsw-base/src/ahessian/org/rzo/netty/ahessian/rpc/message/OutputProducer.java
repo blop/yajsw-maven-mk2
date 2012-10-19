@@ -15,6 +15,7 @@ import org.jboss.netty.channel.Channels;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelHandler;
 import org.rzo.netty.ahessian.stopable.StopableHandler;
+import org.rzo.netty.ahessian.utils.MyReentrantLock;
 import org.rzo.netty.ahessian.utils.TimedBlockingPriorityQueue;
 
 
@@ -24,7 +25,7 @@ public class OutputProducer extends SimpleChannelHandler implements StopableHand
 	
 	
 	AtomicInteger _producerThreadsCount = new AtomicInteger(0);
-	Lock _lock = new ReentrantLock();
+	Lock _lock = new MyReentrantLock();
 
 	Executor _executor;
 	Timer _timer;

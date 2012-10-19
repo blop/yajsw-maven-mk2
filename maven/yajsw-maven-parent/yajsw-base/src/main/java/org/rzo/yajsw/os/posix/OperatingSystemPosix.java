@@ -9,12 +9,12 @@ public abstract class OperatingSystemPosix extends OperatingSystem
 	@Override
 	public boolean setWorkingDir(String name)
 	{
-		return new PosixProcess().setWorkingDirectory(name);
+		return new PosixProcess().changeWorkingDir(name);
 	}
 	@Override
 	public Mouse mouseInstance()
 	{
-		return PosixMouse.instance();
+		return null;//PosixMouse.instance();
 	}
 	
 	@Override

@@ -16,7 +16,8 @@ public class RunScript
 	{
 		String wrapperJar = WrapperLoader.getWrapperJar();
 		String homeDir = new File(wrapperJar).getParent();
-		OperatingSystem.instance().setWorkingDir(homeDir);
+		if (!OperatingSystem.instance().setWorkingDir(homeDir))
+			System.out.println("could not set working dir. pls check configuration or user rights :"+homeDir);
 
 		String configFile = args[0];
 		String script = args[1];
@@ -46,7 +47,7 @@ public class RunScript
 		WrappedProcess process = WrappedProcessFactory.createProcess(config);
 		process.init();
 
-		Script s = ScriptFactory.createScript(script, "test", process, scriptArgs, null, 0);
+		Script s = ScriptFactory.createScript(script, "test", process, scriptArgs, null, 0, config.getString("wrapper.script.encoding"), config.getBoolean("wrapper.script.reload", false));
 		if (s == null)
 		{
 			System.out.println("error initializing script " + script);

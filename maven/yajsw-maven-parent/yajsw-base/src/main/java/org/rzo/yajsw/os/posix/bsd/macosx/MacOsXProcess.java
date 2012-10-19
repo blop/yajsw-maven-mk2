@@ -18,16 +18,19 @@ import com.sun.jna.ptr.IntByReference;
 public class MacOsXProcess extends PosixProcess
 {
 
+	@Override
 	public String getStdInName()
 	{
 		return "__stdinp";
 	}
 
+	@Override
 	public String getStdOutName()
 	{
 		return "__stdoutp";
 	}
 
+	@Override
 	public String getStdErrName()
 	{
 		return "__stderrp";

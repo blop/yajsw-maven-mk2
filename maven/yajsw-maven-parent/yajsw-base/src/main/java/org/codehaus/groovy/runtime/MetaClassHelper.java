@@ -20,13 +20,6 @@ import groovy.lang.Closure;
 import groovy.lang.GString;
 import groovy.lang.GroovyRuntimeException;
 import groovy.lang.MetaMethod;
-import org.codehaus.groovy.reflection.CachedClass;
-import org.codehaus.groovy.util.FastArray;
-import org.codehaus.groovy.reflection.ParameterTypes;
-import org.codehaus.groovy.reflection.ReflectionCache;
-import org.codehaus.groovy.runtime.wrappers.Wrapper;
-import org.jboss.netty.logging.InternalLogger;
-import org.jboss.netty.logging.InternalLoggerFactory;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
@@ -37,8 +30,14 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-//import java.util.logging.Level;
-//import java.util.logging.Logger;
+
+import org.codehaus.groovy.reflection.CachedClass;
+import org.codehaus.groovy.reflection.ParameterTypes;
+import org.codehaus.groovy.reflection.ReflectionCache;
+import org.codehaus.groovy.runtime.wrappers.Wrapper;
+import org.codehaus.groovy.util.FastArray;
+import org.jboss.netty.logging.InternalLogger;
+import org.jboss.netty.logging.InternalLoggerFactory;
 
 /**
  * @author John Wilson

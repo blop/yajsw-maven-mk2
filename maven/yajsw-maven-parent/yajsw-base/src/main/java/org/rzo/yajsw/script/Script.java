@@ -48,7 +48,7 @@ public interface Script extends TriggerAction
 	 */
 	public String getScript();
 
-	public Object executeWithTimeout();
+	public void executeWithTimeout();
 
-	public Object executeWithTimeout(String line);
+	public void executeWithTimeout(String line);
 }

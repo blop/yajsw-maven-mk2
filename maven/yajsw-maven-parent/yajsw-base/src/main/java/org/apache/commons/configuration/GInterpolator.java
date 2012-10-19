@@ -117,7 +117,8 @@ public class GInterpolator implements Interpolator
 		{
 			result = "?unresolved?";
 			if (caught != null)
-				log.warn("error evaluating "+value, caught);
+				//log.warn("error evaluating "+value, caught);
+				log.warn("error evaluating "+value+" : "+caught.getMessage());
 			else
 				log.warn("error evaluating "+value);
 		}

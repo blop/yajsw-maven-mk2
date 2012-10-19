@@ -31,10 +31,10 @@ public class WrappedProcessFactory
 		return process;
 	}
 
-	public static WrappedProcessList createProcessList(Map map, List<String> confFiles, boolean useSystemProperties)
+	public static WrappedProcessList createProcessList(Map map, List<Object> confFiles, boolean useSystemProperties)
 	{
 		WrappedProcessList list = new WrappedProcessList();
-		for (String conf : confFiles)
+		for (Object conf : confFiles)
 		{
 			Map sConf = new HashMap(map);
 			sConf.put("wrapper.config", conf);

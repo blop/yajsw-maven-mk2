@@ -1113,7 +1113,28 @@ public class Hessian2Output
       _buffer[_offset++] = (byte) 'N';
     }
     else {
-      while (SIZE - _offset - 3 < length) {
+        while (length > 0x8000) {
+            int sublen = 0x8000;
+
+            if (SIZE < _offset + 3)
+              flushBuffer();
+
+            _buffer[_offset++] = (byte) BC_BINARY_CHUNK;
+            _buffer[_offset++] = (byte) (sublen >> 8);
+            _buffer[_offset++] = (byte) sublen;
+
+            if (SIZE < _offset + sublen)
+                flushBuffer();
+
+            System.arraycopy(buffer, offset, _buffer, _offset, sublen);
+            _offset += sublen;
+
+            length -= sublen;
+            offset += sublen;
+
+          }
+    	
+      /*while (SIZE - _offset - 3 < length) {
         int sublen = SIZE - _offset - 3;
 
         if (sublen < 16) {
@@ -1137,6 +1158,7 @@ public class Hessian2Output
 
         flushBuffer();
       }
+      */
 
       if (SIZE < _offset + 16)
         flushBuffer();
@@ -1154,6 +1176,8 @@ public class Hessian2Output
         _buffer[_offset++] = (byte) (length);
       }
 
+      if (SIZE < _offset + length)
+          flushBuffer();
       System.arraycopy(buffer, offset, _buffer, _offset, length);
 
       _offset += length;
