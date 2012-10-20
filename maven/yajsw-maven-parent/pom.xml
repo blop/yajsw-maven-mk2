@@ -33,7 +33,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.rzo</groupId>
 	<artifactId>yajsw-maven-parent</artifactId>
-	<version>0.0.1</version>
+	<version>${yajsw-version}</version>
 	<repositories>
 		<!-- <repository> <id>Releases</id> <url>http://192.168.6.242:8082/nexus/content/repositories/releases</url> 
 			</repository> <repository> <id>Apache Snapshots Proxy</id> <url>http://192.168.6.242:8082/nexus/content/repositories/apache-snapshots/</url> 
@@ -325,22 +325,22 @@
 			<dependency>
 				<groupId>org.rzo</groupId>
 				<artifactId>yajsw-core-deps</artifactId>
-				<version>0.0.1</version>
+				<version>${yajsw-version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.rzo</groupId>
 				<artifactId>yajsw-maven-parent</artifactId>
-				<version>0.0.1</version>
+				<version>${yajsw-version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.rzo</groupId>
 				<artifactId>yajsw-core</artifactId>
-				<version>0.0.1</version>
+				<version>${yajsw-version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.rzo</groupId>
 				<artifactId>yajsw-base</artifactId>
-				<version>0.0.1</version>
+				<version>${yajsw-version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

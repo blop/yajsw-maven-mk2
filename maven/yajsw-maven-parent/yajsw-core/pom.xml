@@ -2,12 +2,12 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<properties>
-		<yajsw-version>0.0.1</yajsw-version>
+		<yajsw-version>11.03</yajsw-version>
 	</properties>
 	<parent>
 		<artifactId>yajsw-maven-parent</artifactId>
 		<groupId>org.rzo</groupId>
-		<version>0.0.1</version>
+		<version>${yajsw-version}</version>
 		<relativePath>..</relativePath>
 	</parent>
 	<artifactId>yajsw-core</artifactId>
@@ -16,14 +16,14 @@
 			<groupId>org.rzo</groupId>
 			<artifactId>yajsw-base</artifactId>
 			<classifier>distribution</classifier>
-			<version>0.0.1</version>
+			<version>${yajsw-version}</version>
 		</dependency>
 	 
 		<dependency>
 			<groupId>org.rzo</groupId>
 			<artifactId>yajsw-core-deps</artifactId>
 			<classifier>distribution</classifier>
-			<version>0.0.1</version>
+			<version>${yajsw-version}</version>
 		</dependency>
 		
 	</dependencies>

@@ -3,13 +3,13 @@
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>yajsw-core-deps</artifactId>
 	<properties>
-		<yajsw-version>0.0.1</yajsw-version>
+		<yajsw-version>11.03</yajsw-version>
 	</properties>
 	<parent>
 		<groupId>org.rzo</groupId>
 		<artifactId>yajsw-maven-parent</artifactId>
 		<relativePath>..</relativePath>
-		<version>0.0.1</version>
+		<version>${yajsw-version}</version>
 	</parent>
 	<dependencies>
 

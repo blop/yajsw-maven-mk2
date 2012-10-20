@@ -9,11 +9,11 @@
 		<cr>&#0014;</cr>
 		<bs>&#0092;</bs>
 		<linesep>${line.separator}</linesep>
+		<yajsw-version>11.03</yajsw-version>
 	</properties>
 
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>yajsw-base</artifactId>
-	<version>0.0.1</version>
 	<dependencies>
 		<dependency>
 			<groupId>org.rzo</groupId>
@@ -315,7 +315,7 @@
 	<parent>
 		<groupId>org.rzo</groupId>
 		<artifactId>yajsw-maven-parent</artifactId>
-		<version>0.0.1</version>
+		<version>${yajsw-version}</version>
 		<relativePath>..</relativePath>
 	</parent>
 </project>
